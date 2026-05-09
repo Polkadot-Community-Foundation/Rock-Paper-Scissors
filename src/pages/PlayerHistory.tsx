@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { getContract, short, IPFS_GATEWAY } from "../utils.ts";
-import type { PlayerData, Move, RoundResult } from "../types.ts";
+import { getContract, short, IPFS_GATEWAY, asBytes20 } from "../utils.ts";
+import type { PlayerData, Move } from "../types.ts";
 
-const MOVE_EMOJI: Record<Move, string> = { rock: "\u270A", paper: "\u270B", scissors: "\u2702\uFE0F" };
+const MOVE_EMOJI: Record<Move, string> = { rock: "✊", paper: "✋", scissors: "✂️" };
 
 export default function PlayerHistory({ playerAddress, onBack }: {
     playerAddress: string;
@@ -18,7 +18,7 @@ export default function PlayerHistory({ playerAddress, onBack }: {
                 const lb = getContract();
                 if (!lb) return;
 
-                const cidRes = await lb.getPlayerCid.query(playerAddress);
+                const cidRes = await lb.getPlayerCid.query(asBytes20(playerAddress));
                 if (!cidRes.success || !cidRes.value || cancelled) {
                     setLoading(false);
                     return;

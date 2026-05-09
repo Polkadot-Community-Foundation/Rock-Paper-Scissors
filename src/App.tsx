@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSignerState, signerManager, short, initCdm } from "./utils.ts";
+import { useAccountState, connectAccount, short, initContracts } from "./utils.ts";
 import Home from "./pages/Home.tsx";
 import SoloGame from "./pages/SoloGame.tsx";
 import MultiplayerLobby from "./pages/MultiplayerLobby.tsx";
@@ -7,21 +7,14 @@ import MultiplayerGame from "./pages/MultiplayerGame.tsx";
 import Leaderboard from "./pages/Leaderboard.tsx";
 import PlayerHistory from "./pages/PlayerHistory.tsx";
 
-// ---------------------------------------------------------------------------
-// CDM init — will fail gracefully if cdm.json doesn't exist yet
-// ---------------------------------------------------------------------------
-
+// CDM init — fails gracefully if cdm.json doesn't exist yet
 try {
     // @ts-ignore — cdm.json is created after `cdm deploy`
     const cdmJson = await import("../cdm.json");
-    initCdm(cdmJson.default ?? cdmJson);
+    await initContracts(cdmJson.default ?? cdmJson);
 } catch {
     console.warn("[CDM] cdm.json not found — contract features disabled until deploy");
 }
-
-// ---------------------------------------------------------------------------
-// View types
-// ---------------------------------------------------------------------------
 
 type View =
     | { page: "home" }
@@ -31,33 +24,27 @@ type View =
     | { page: "leaderboard" }
     | { page: "history"; playerAddress: string };
 
-// ---------------------------------------------------------------------------
-// App
-// ---------------------------------------------------------------------------
-
 export default function App() {
-    const { status, accounts, selectedAccount, error } = useSignerState();
-
-    useEffect(() => {
-        signerManager.connect().then(async result => {
-            if (result.ok && result.value.length > 0) {
-                signerManager.selectAccount(result.value[0].address);
-            } else {
-                // Fallback to dev accounts if host/extension fails
-                console.warn("[Signer] Auto-connect failed, trying dev accounts...");
-                const devResult = await signerManager.connect("dev");
-                if (devResult.ok && devResult.value.length > 0) {
-                    signerManager.selectAccount(devResult.value[0].address);
-                }
-            }
-        });
-    }, []);
-
-    const account = selectedAccount;
+    const { status, account, error } = useAccountState();
     const [view, setView] = useState<View>({ page: "home" });
 
-    if (status === "connecting") {
-        return <div className="spinner">Connecting wallet...</div>;
+    useEffect(() => {
+        connectAccount();
+    }, []);
+
+    if (status === "connecting" || status === "idle") {
+        return <div className="spinner">Requesting product account from host...</div>;
+    }
+
+    if (status === "error" || !account) {
+        return (
+            <div className="empty">
+                <div>Failed to connect: {error ?? "no account"}</div>
+                <button className="btn btn-primary" onClick={() => connectAccount()} style={{ marginTop: 12 }}>
+                    Retry
+                </button>
+            </div>
+        );
     }
 
     const goHome = () => setView({ page: "home" });
@@ -66,21 +53,9 @@ export default function App() {
         <>
             <header>
                 <h1 onClick={goHome} style={{ cursor: "pointer" }}>RPS</h1>
-                {accounts.length > 0 ? (
-                    <select
-                        className="account-select"
-                        value={account?.address ?? ""}
-                        onChange={e => signerManager.selectAccount(e.target.value)}
-                    >
-                        {accounts.map(acc => (
-                            <option key={acc.address} value={acc.address}>
-                                {acc.name ?? short(acc.address)} ({acc.source})
-                            </option>
-                        ))}
-                    </select>
-                ) : (
-                    <span className="account-select">{error?.message ?? "No accounts"}</span>
-                )}
+                <span className="account-select" title={account.address}>
+                    {account.name ?? short(account.address)}
+                </span>
             </header>
 
             {view.page !== "home" && (
@@ -98,21 +73,17 @@ export default function App() {
                 />
             )}
 
-            {view.page === "solo" && account && (
-                <SoloGame account={account} onDone={goHome} />
-            )}
+            {view.page === "solo" && <SoloGame account={account} onDone={goHome} />}
 
-            {view.page === "lobby" && account && (
+            {view.page === "lobby" && (
                 <MultiplayerLobby
                     account={account}
-                    onGameStart={(roomCode, isCreator) =>
-                        setView({ page: "multiplayer", roomCode, isCreator })
-                    }
+                    onGameStart={(roomCode, isCreator) => setView({ page: "multiplayer", roomCode, isCreator })}
                     onBack={goHome}
                 />
             )}
 
-            {view.page === "multiplayer" && account && (
+            {view.page === "multiplayer" && (
                 <MultiplayerGame
                     account={account}
                     roomCode={view.roomCode}
@@ -132,10 +103,6 @@ export default function App() {
                     playerAddress={view.playerAddress}
                     onBack={() => setView({ page: "leaderboard" })}
                 />
-            )}
-
-            {(view.page === "solo" || view.page === "lobby" || view.page === "multiplayer") && !account && (
-                <div className="empty">Please connect a wallet to play.</div>
             )}
         </>
     );

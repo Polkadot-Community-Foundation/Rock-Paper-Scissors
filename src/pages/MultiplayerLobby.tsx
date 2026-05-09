@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { StatementStoreClient } from "@polkadot-apps/statement-store";
+import type { AppAccount } from "../utils.ts";
+import { StatementStoreClient } from "@parity/product-sdk-statement-store";
 import { generateRoomCode } from "../utils.ts";
 
 interface JoinMessage {
@@ -8,10 +9,8 @@ interface JoinMessage {
     timestamp: number;
 }
 
-const APP_NAME = "rps-game";
-
-export default function MultiplayerLobby({ account, onGameStart, onBack }: {
-    account: { address: string; h160Address: string; publicKey: Uint8Array; getSigner: () => any };
+export default function MultiplayerLobby({ account, onGameStart }: {
+    account: AppAccount;
     onGameStart: (roomCode: string, isCreator: boolean) => void;
     onBack: () => void;
 }) {
@@ -23,16 +22,11 @@ export default function MultiplayerLobby({ account, onGameStart, onBack }: {
     const clientRef = useRef<StatementStoreClient | null>(null);
 
     useEffect(() => {
-        return () => {
-            console.log("[Lobby] Cleanup");
-            clientRef.current?.destroy();
-            clientRef.current = null;
-        };
+        return () => { clientRef.current?.destroy(); };
     }, []);
 
     const createRoom = async () => {
         const code = generateRoomCode();
-        console.log("[Lobby] Creating room:", code);
         setRoomCode(code);
         setMode("create");
         setWaiting(true);
@@ -40,23 +34,19 @@ export default function MultiplayerLobby({ account, onGameStart, onBack }: {
 
         try {
             const client = new StatementStoreClient({
-                appName: APP_NAME,
+                appName: "rps-game",
                 defaultTtlSeconds: 600,
             });
             clientRef.current = client;
 
-            console.log("[Lobby] Connecting in host mode...");
             await client.connect({
                 mode: "host",
-                accountId: ["rps-game.dot", 0],
+                accountId: account.productAccountId,
             });
-            console.log("[Lobby] Connected");
 
-            // Subscribe for opponent join
-            client.subscribe<JoinMessage>((stmt) => {
-                console.log("[Lobby] Statement received:", stmt.data);
-                if (stmt.data.type === "join" && stmt.data.peerId !== account.h160Address) {
-                    console.log("[Lobby] >>> Opponent found:", stmt.data.peerId);
+            client.subscribe<JoinMessage>((statement) => {
+                const msg = statement.data;
+                if (msg.type === "join" && msg.peerId !== account.h160Address) {
                     setStatusMsg("Opponent found! Starting game...");
                     setTimeout(() => {
                         client.destroy();
@@ -66,13 +56,10 @@ export default function MultiplayerLobby({ account, onGameStart, onBack }: {
                 }
             }, { topic2: code });
 
-            // Publish presence
-            console.log("[Lobby] Publishing join...");
-            const ok = await client.publish<JoinMessage>(
+            await client.publish<JoinMessage>(
                 { type: "join", peerId: account.h160Address, timestamp: Date.now() },
                 { channel: `${code}/presence/${account.h160Address}`, topic2: code },
             );
-            console.log("[Lobby] Publish:", ok);
 
             setStatusMsg("Waiting for opponent...");
         } catch (err) {
@@ -86,24 +73,22 @@ export default function MultiplayerLobby({ account, onGameStart, onBack }: {
         const code = joinCode.trim().toUpperCase();
         if (code.length < 4) return;
 
-        console.log("[Lobby] Joining room:", code);
         setRoomCode(code);
         setWaiting(true);
         setStatusMsg("Joining room...");
 
         try {
             const client = new StatementStoreClient({
-                appName: APP_NAME,
+                appName: "rps-game",
                 defaultTtlSeconds: 600,
             });
             clientRef.current = client;
 
             await client.connect({
                 mode: "host",
-                accountId: ["rps-game.dot", 0],
+                accountId: account.productAccountId,
             });
 
-            console.log("[Lobby] Publishing join...");
             await client.publish<JoinMessage>(
                 { type: "join", peerId: account.h160Address, timestamp: Date.now() },
                 { channel: `${code}/presence/${account.h160Address}`, topic2: code },
