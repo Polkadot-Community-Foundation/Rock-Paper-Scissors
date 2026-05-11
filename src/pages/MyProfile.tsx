@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { getContract, short, IPFS_GATEWAY } from "../utils.ts";
+import type { AppAccount } from "../utils.ts";
+import { getContract, short, IPFS_GATEWAY, asBytes20 } from "../utils.ts";
 import type { PlayerData, Move } from "../types.ts";
 
-const MOVE_EMOJI: Record<Move, string> = { rock: "\u270A", paper: "\u270B", scissors: "\u2702\uFE0F" };
+const MOVE_EMOJI: Record<Move, string> = { rock: "✊", paper: "✋", scissors: "✂️" };
 
 export default function MyProfile({ account }: {
-    account: { address: string; h160Address: string };
+    account: AppAccount;
 }) {
     const [data, setData] = useState<PlayerData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -18,22 +19,15 @@ export default function MyProfile({ account }: {
                 const lb = getContract();
                 if (!lb) { setLoading(false); return; }
 
-                console.log("[Profile] Checking registration for", account.h160Address);
-                const regRes = await lb.isRegistered.query(account.h160Address);
-                console.log("[Profile] isRegistered:", regRes);
+                const regRes = await lb.isRegistered.query(asBytes20(account));
                 if (!regRes.success || !regRes.value) {
                     setLoading(false);
                     return;
                 }
 
-                console.log("[Profile] Fetching CID...");
-                const cidRes = await lb.getPlayerCid.query(account.h160Address);
-                console.log("[Profile] getPlayerCid:", cidRes);
+                const cidRes = await lb.getPlayerCid.query(asBytes20(account));
                 if (!cidRes.success || !cidRes.value || cancelled) {
-                    // Registered but no games yet
-                    console.log("[Profile] Fetching points...");
-                    const ptsRes = await lb.getPlayerPoints.query(account.h160Address);
-                    console.log("[Profile] getPlayerPoints:", ptsRes);
+                    const ptsRes = await lb.getPlayerPoints.query(asBytes20(account));
                     if (!cancelled) {
                         setData({
                             player: account.h160Address,
@@ -46,12 +40,9 @@ export default function MyProfile({ account }: {
                     return;
                 }
 
-                console.log("[Profile] Fetching data from Bulletin:", cidRes.value);
                 const resp = await fetch(IPFS_GATEWAY + cidRes.value);
                 if (resp.ok && !cancelled) {
-                    const pd = await resp.json();
-                    console.log("[Profile] Player data loaded:", pd.totalGames, "games");
-                    setData(pd);
+                    setData(await resp.json());
                 }
             } catch (err) {
                 console.error("[Profile] Error:", err);
@@ -93,7 +84,7 @@ export default function MyProfile({ account }: {
                     <span className="profile-stat-loss">{data.losses}L</span>
                     <span className="profile-stat-draw">{data.draws}D</span>
                     <span className="profile-stat-rate">{winRate}%</span>
-                    <span className="profile-expand">{expanded ? "\u25B2" : "\u25BC"}</span>
+                    <span className="profile-expand">{expanded ? "▲" : "▼"}</span>
                 </div>
             </div>
 

@@ -1,7 +1,8 @@
+import type { AppAccount } from "../utils.ts";
 import MyProfile from "./MyProfile.tsx";
 
 export default function Home({ account, onSolo, onMultiplayer, onLeaderboard }: {
-    account: { address: string; h160Address: string } | null;
+    account: AppAccount | null;
     onSolo: () => void;
     onMultiplayer: () => void;
     onLeaderboard: () => void;
