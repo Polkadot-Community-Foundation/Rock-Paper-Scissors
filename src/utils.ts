@@ -6,8 +6,9 @@ import {
     createPapiProvider,
     type ProductAccount,
 } from "@novasamatech/product-sdk";
-import { ContractManager } from "@parity/product-sdk-contracts";
-import { createInkSdk, ss58ToEthereum } from "@polkadot-api/sdk-ink";
+import { ContractManager, ensureContractAccountMapped } from "@parity/product-sdk-contracts";
+import { paseo_asset_hub } from "@parity/product-sdk-descriptors/paseo-asset-hub";
+import { ss58ToH160 } from "@parity/product-sdk-address";
 import { createClient, AccountId, type PolkadotSigner } from "polkadot-api";
 import { getWsProvider } from "@polkadot-api/ws-provider";
 import { blake2b } from "@noble/hashes/blake2.js";
@@ -16,8 +17,9 @@ import * as raw from "multiformats/codecs/raw";
 import type { MultihashDigest } from "multiformats/hashes/interface";
 import type { Move, RoundResult } from "./types.ts";
 
-const PASEO_ASSET_HUB_GENESIS = "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2" as const;
-const PASEO_ASSET_HUB_WS = "wss://asset-hub-paseo-rpc.n.dwellir.com";
+// Paseo Next v2 — see @parity/product-sdk 0.4.0 CHANGELOG. v1 is retired 2026-05-20.
+const PASEO_ASSET_HUB_GENESIS = "0x173cea9df45656cf612c8b8ece56e04e9a693c69cfaac47d3628dae735067af8" as const;
+const PASEO_ASSET_HUB_WS = "wss://paseo-asset-hub-next-rpc.polkadot.io";
 
 // ---------------------------------------------------------------------------
 // Permissions (RFC-0002)
@@ -125,12 +127,16 @@ export async function connectAccount(): Promise<void> {
 
         const { publicKey } = result.value;
         const productAccount: ProductAccount = { dotNsIdentifier: identifier, derivationIndex, publicKey };
+        // accountsProvider.getProductAccountSigner goes through @polkadot-api/pjs-signer's
+        // static signed-extension mapper, which doesn't know about `AsPgas` (the new
+        // pallet-revive extension on Paseo Next v2). We patch in a no-op AsPgas mapper
+        // via a Vite plugin in vite.config.ts so this PJS path no longer throws.
         const signer = accountsProvider.getProductAccountSigner(productAccount);
         const ss58 = accountIdCodec.dec(publicKey);
         // pallet-revive contracts key by EVM-style h160 (keccak256(publicKey).slice(12)).
-        // Use sdk-ink's helper so pages can pass a stable hex address that matches
-        // what `Revive.OriginalAccount` and contract bytes20 args expect.
-        const h160Address = ss58ToEthereum(ss58) as unknown as `0x${string}`;
+        // ss58ToH160 from @parity/product-sdk-address returns the same hex string that
+        // `Revive.OriginalAccount` and contract bytes20 args expect.
+        const h160Address = ss58ToH160(ss58 as never) as `0x${string}`;
 
         let displayName: string | null = null;
         try {
@@ -317,14 +323,20 @@ async function ensureContractsReady(): Promise<void> {
         await _polkadotClient.getBestBlocks();
         console.log("[CDM] Chain follow active.");
 
-        const inkSdk = createInkSdk(_polkadotClient, { atBest: true });
-        _contractManager = new ContractManager(_cdmJson, inkSdk);
+        // @parity/product-sdk-contracts 0.4 dropped @polkadot-api/sdk-ink and now wires
+        // through PAPI's typed API + revive runtime API directly. `fromClient` builds
+        // the ContractRuntime internally and routes ReviveApi.call through the unsafe
+        // API to absorb descriptor-vs-chain compat-token drift.
+        _contractManager = ContractManager.fromClient(
+            _cdmJson,
+            _polkadotClient,
+            paseo_asset_hub,
+            _state.account
+                ? { defaultOrigin: _state.account.address as never, defaultSigner: _state.account.signer }
+                : undefined,
+        );
         _contract = wrapContract(_contractManager.getContract("@example/leaderboard"));
         console.log("[CDM] Contract manager ready");
-        // wire defaults if account already loaded
-        if (_state.account) {
-            _contractManager.setDefaults({ origin: _state.account.address, signer: _state.account.signer });
-        }
     })();
     return _contractInitPromise;
 }
@@ -382,10 +394,41 @@ export function asBytes20(hexOrAccount: string | AppAccount): `0x${string}` {
 
 const _mappedAccounts = new Set<string>();
 
+// pallet-revive on Paseo Next v2 requires every SS58 origin that calls a contract to
+// have an explicit Revive.map_account() entry. Product accounts are NOT pre-mapped by
+// the host — first contract call from a fresh product account dry-run-fails with
+// `Revive::AccountUnmapped` until we submit the mapping tx ourselves. The helper is
+// idempotent (short-circuits when storage already has the entry), so the first-time
+// path costs one signature and subsequent calls are free.
 export async function ensureMapping(account: AppAccount): Promise<void> {
     if (_mappedAccounts.has(account.address)) return;
-    _mappedAccounts.add(account.address);
-    // Product accounts are pre-mapped on the host side; no extra step needed.
+    await ensureContractsReady();
+    if (!_contractManager) throw new Error("Contract manager not ready");
+    try {
+        const mapped = await ensureContractAccountMapped(
+            _contractManager.getRuntime(),
+            account.address as never,
+            account.signer,
+        );
+        if (mapped === null) {
+            console.log(`[Revive] Account ${account.address} already mapped`);
+        } else {
+            console.log(`[Revive] Account mapped in block #${mapped.block.number}`);
+        }
+        _mappedAccounts.add(account.address);
+    } catch (err) {
+        console.error("[Revive] ensureContractAccountMapped failed:", err);
+        // TxAccountMappingError wraps the underlying storage-read failure in `cause`.
+        // The top-level message alone hides whether it's a chainHead/runtime/decoder issue.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (err && typeof err === "object" && "cause" in err) {
+            console.error("[Revive] underlying cause:", (err as any).cause);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const causeCause = (err as any).cause?.cause;
+            if (causeCause) console.error("[Revive] root cause:", causeCause);
+        }
+        throw err;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +436,7 @@ export async function ensureMapping(account: AppAccount): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const GATEWAYS = [
-    "https://paseo-ipfs.polkadot.io/ipfs/",
+    "https://paseo-bulletin-next-ipfs.polkadot.io/ipfs/",
     "https://dweb.link/ipfs/",
     "https://ipfs.io/ipfs/",
     "https://nftstorage.link/ipfs/",
