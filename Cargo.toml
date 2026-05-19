@@ -1,11 +1,6 @@
 [workspace]
 resolver = "2"
 members = ["contracts/leaderboard"]
-# contracts/contract-registry held only to satisfy `cdm deploy --bootstrap` build step;
-# the registry was deployed at 0x0afb53bf7650f71a8a09f1a6f654fbe59e166195 on Paseo Next v2.
-# Excluded from members so cdm doesn't try to redeploy it on every `cdm deploy` (causes
-# nonce-stale collisions with leaderboard deploy).
-exclude = ["contracts/contract-registry"]
 
 [workspace.package]
 version = "0.1.0"

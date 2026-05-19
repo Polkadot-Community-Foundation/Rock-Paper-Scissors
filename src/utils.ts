@@ -132,11 +132,13 @@ export async function connectAccount(): Promise<void> {
 
         const { publicKey } = result.value;
         const productAccount: ProductAccount = { dotNsIdentifier: identifier, derivationIndex, publicKey };
-        // accountsProvider.getProductAccountSigner goes through @polkadot-api/pjs-signer's
-        // static signed-extension mapper, which doesn't know about `AsPgas` (the new
-        // pallet-revive extension on Paseo Next v2). We patch in a no-op AsPgas mapper
-        // via a Vite plugin in vite.config.ts so this PJS path no longer throws.
-        const signer = accountsProvider.getProductAccountSigner(productAccount);
+        // "createTransaction" signerType (novasama 0.7.9+) routes through host's
+        // `host_create_transaction` RPC and bypasses @polkadot-api/pjs-signer entirely.
+        // PJS adapter has a static signed-extension whitelist that doesn't include
+        // pallet-revive's Paseo Next v2 extensions (AsPgas, AsRingAlias, CheckWeight,
+        // WeightReclaim) — the host accepts the raw extension list directly, no static
+        // mapper required. Requires Polkadot Desktop ≥ 0.3.10 (ships novasama 0.7.9-5).
+        const signer = accountsProvider.getProductAccountSigner(productAccount, "createTransaction");
         const ss58 = accountIdCodec.dec(publicKey);
         // pallet-revive contracts key by EVM-style h160 (keccak256(publicKey).slice(12)).
         // ss58ToH160 from @parity/product-sdk-address returns the same hex string that
