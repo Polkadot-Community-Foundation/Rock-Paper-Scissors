@@ -52,13 +52,18 @@ const accountsProvider = createAccountsProvider();
 const accountIdCodec = AccountId();
 
 /**
- * Identifier the host uses to scope our product. Polkadot Desktop ≥ 0.7.5
- * accepts both ".dot" hostnames and "localhost:PORT" — read live so dev and
- * prod both work.
+ * Identifier dotli uses to scope our product. dotli exposes products as
+ * `<name>.<gateway>` (always 3 hostname labels); other hosts (proxied URLs,
+ * localhost) pass the full host. Signing later requires the identifier to
+ * match the iframe label, so we mirror dotli's own derivation here.
  */
 function getProductIdentifier(): string | null {
     if (typeof window === "undefined") return null;
-    return window.location.host || null;
+    const host = window.location.host.toLowerCase();
+    if (!host) return null;
+    const parts = host.split(".");
+    const label = parts.length === 3 ? parts[0] : host;
+    return `${label}.dot`;
 }
 
 export function getAppAccountId(): [string, number] {
