@@ -6,6 +6,7 @@ import {
     createPapiProvider,
     type ProductAccount,
 } from "@novasamatech/product-sdk";
+import { RequestCredentialsErr } from "@novasamatech/host-api";
 import { ContractManager, ensureContractAccountMapped } from "@parity/product-sdk-contracts";
 import { paseo_asset_hub } from "@parity/product-sdk-descriptors/paseo-asset-hub";
 import { ss58ToH160 } from "@parity/product-sdk-address";
@@ -91,7 +92,7 @@ export interface AppAccount {
 }
 
 interface AccountState {
-    status: "idle" | "connecting" | "ready" | "error";
+    status: "idle" | "connecting" | "ready" | "signed-out" | "error";
     account: AppAccount | null;
     error?: string;
 }
@@ -124,6 +125,10 @@ export async function connectAccount(): Promise<void> {
 
         const result = await accountsProvider.getProductAccount(identifier, derivationIndex);
         if (result.isErr()) {
+            if (result.error instanceof RequestCredentialsErr.NotConnected) {
+                setState({ status: "signed-out", account: null });
+                return;
+            }
             const errMsg = `${(result.error as any)?.tag ?? "Unknown"}: ${(result.error as any)?.value?.reason ?? String(result.error)}`;
             console.warn("[Account] getProductAccount error:", errMsg);
             setState({ status: "error", account: null, error: errMsg });
@@ -177,6 +182,12 @@ export async function connectAccount(): Promise<void> {
         console.error("[Account] Connect failed:", msg);
         setState({ status: "error", account: null, error: msg });
     }
+}
+
+/** Open dotli's sign-in UI and refresh the account on success. */
+export async function signIn(): Promise<void> {
+    await accountsProvider.requestLogin("Sign in to play Rock Paper Scissors");
+    await connectAccount();
 }
 
 // ---------------------------------------------------------------------------
