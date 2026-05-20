@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAccountState, connectAccount, short, initContracts } from "./utils.ts";
+import { useAccountState, connectAccount, signIn, short, initContracts } from "./utils.ts";
 import Home from "./pages/Home.tsx";
 import SoloGame from "./pages/SoloGame.tsx";
 import MultiplayerLobby from "./pages/MultiplayerLobby.tsx";
@@ -34,6 +34,17 @@ export default function App() {
 
     if (status === "connecting" || status === "idle") {
         return <div className="spinner">Requesting product account from host...</div>;
+    }
+
+    if (status === "signed-out") {
+        return (
+            <div className="empty">
+                <div>Sign in to dotli to play Rock Paper Scissors.</div>
+                <button className="btn btn-primary" onClick={() => signIn()} style={{ marginTop: 12 }}>
+                    Sign in
+                </button>
+            </div>
+        );
     }
 
     if (status === "error" || !account) {
