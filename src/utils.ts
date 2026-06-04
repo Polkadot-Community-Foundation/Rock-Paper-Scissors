@@ -4,10 +4,11 @@ import {
     preimageManager,
     requestPermission,
     createPapiProvider,
+    sandboxTransport,
     type ProductAccount,
-} from "@novasamatech/product-sdk";
+} from "@novasamatech/host-api-wrapper";
 import { RequestCredentialsErr } from "@novasamatech/host-api";
-import { ContractManager, ensureContractAccountMapped } from "@parity/product-sdk-contracts";
+import { ContractManager, createContractRuntimeFromClient, ensureContractAccountMapped } from "@parity/product-sdk-contracts";
 import { paseo_asset_hub } from "@parity/product-sdk-descriptors/paseo-asset-hub";
 import { ss58ToH160 } from "@parity/product-sdk-address";
 import { createClient, AccountId, type PolkadotSigner } from "polkadot-api";
@@ -49,22 +50,24 @@ async function ensurePermission(tag: "ChainSubmit" | "PreimageSubmit" | "Stateme
 // goes through getLegacyAccounts() which the new desktop/android hosts reject.
 // ---------------------------------------------------------------------------
 
-const accountsProvider = createAccountsProvider();
+// host-api-wrapper 0.8.x: createAccountsProvider now takes the sandbox transport
+// explicitly (matches t3rminal lib/host/connection.ts). Works on both Desktop
+// webview and dot.li iframe.
+const accountsProvider = createAccountsProvider(sandboxTransport);
 const accountIdCodec = AccountId();
 
 /**
- * Identifier dotli uses to scope our product. dotli exposes products as
- * `<name>.<gateway>` (always 3 hostname labels); other hosts (proxied URLs,
- * localhost) pass the full host. Signing later requires the identifier to
- * match the iframe label, so we mirror dotli's own derivation here.
+ * Identifier the host uses to scope our product. Polkadot Desktop ≥ 0.7.5
+ * accepts the raw `window.location.host` for both `.dot` domains and
+ * `localhost:PORT`, and the signing permission check matches the identifier
+ * against that same host context. Appending `.dot` (or extracting a label)
+ * makes the signer's identifier diverge from the host context and signing is
+ * denied with `permission denied {expected: 'localhost:3000', got: '...dot'}`.
+ * So mirror t3rminal (lib/host/accounts.ts): use the host verbatim.
  */
 function getProductIdentifier(): string | null {
     if (typeof window === "undefined") return null;
-    const host = window.location.host.toLowerCase();
-    if (!host) return null;
-    const parts = host.split(".");
-    const label = parts.length === 3 ? parts[0] : host;
-    return `${label}.dot`;
+    return window.location.host || null;
 }
 
 export function getAppAccountId(): [string, number] {
@@ -341,20 +344,44 @@ async function ensureContractsReady(): Promise<void> {
         await _polkadotClient.getBestBlocks();
         console.log("[CDM] Chain follow active.");
 
-        // @parity/product-sdk-contracts 0.4 dropped @polkadot-api/sdk-ink and now wires
-        // through PAPI's typed API + revive runtime API directly. `fromClient` builds
-        // the ContractRuntime internally and routes ReviveApi.call through the unsafe
-        // API to absorb descriptor-vs-chain compat-token drift.
-        _contractManager = ContractManager.fromClient(
+        // @parity/product-sdk-contracts 0.7 wires through PAPI's typed API + revive
+        // runtime API directly (no sdk-ink). `fromLiveClient` resolves the leaderboard
+        // address from the live CDM registry on each init instead of trusting the
+        // snapshot baked into cdm.json — so a redeploy is picked up without shipping a
+        // new cdm.json. The registry lookup is itself a contract query, so it needs a
+        // mapped origin.
+        //
+        // The app gates every page behind sign-in (see App.tsx — pages only render
+        // when status === "ready" with a connected account), so contract init is never
+        // reached before a mapped product account exists. We therefore always have an
+        // account to use as both defaultOrigin and registryOrigin; there is no public
+        // pre-auth read path that would need a separate READ_ONLY_QUERY_ORIGIN.
+        if (!_state.account) {
+            throw new Error("[CDM] Contract init reached without a connected account");
+        }
+
+        // Map the product account BEFORE live registry resolution. `fromLiveClient`
+        // immediately calls `registry.getAddress("@rps/leaderboard")` as a view, and
+        // pallet-revive dry-run-fails that call with `Revive::AccountUnmapped` when the
+        // query origin isn't mapped — surfacing as ContractLiveAddressResolutionError.
+        // Build a plain runtime (no registry query) to perform the mapping first.
+        // (ChainSubmit permission already granted at the top of this init.)
+        const initRuntime = createContractRuntimeFromClient(_polkadotClient, paseo_asset_hub);
+        await mapAccountWithRuntime(initRuntime, _state.account);
+
+        _contractManager = await ContractManager.fromLiveClient(
             _cdmJson,
             _polkadotClient,
             paseo_asset_hub,
-            _state.account
-                ? { defaultOrigin: _state.account.address as never, defaultSigner: _state.account.signer }
-                : undefined,
+            {
+                defaultOrigin: _state.account.address as never,
+                defaultSigner: _state.account.signer,
+                registryOrigin: _state.account.address as never,
+                libraries: ["@rps/leaderboard"],
+            },
         );
-        _contract = wrapContract(_contractManager.getContract("@example/leaderboard"));
-        console.log("[CDM] Contract manager ready");
+        _contract = wrapContract(_contractManager.getContract("@rps/leaderboard"));
+        console.log("[CDM] Contract manager ready (live registry resolution)");
     })();
     return _contractInitPromise;
 }
@@ -391,20 +418,23 @@ export function getContract(): any {
 }
 
 /**
- * Format a 20-byte address for contract `bytes20` parameters.
+ * Format a 20-byte H160 for a contract `address` parameter.
  *
- * sdk-ink's encoder accepts either a `0x...` hex string OR an object with
- * `asHex()`. Prior versions of this helper returned a `Binary` instance, but
- * multiple substrate-bindings versions hoisted into `node_modules` cause the
- * `asHex` duck-type check to occasionally fail across realm boundaries.
- * Returning the hex string is the most robust path — the encoder handles it
- * directly and there's no class identity to mis-match.
+ * The contract ABI now uses Solidity `address` (was `bytes20`); the product-sdk
+ * encoder accepts a `0x...` hex string for both. Prior versions of this helper
+ * returned a `Binary` instance, but multiple substrate-bindings versions hoisted
+ * into `node_modules` cause the `asHex` duck-type check to occasionally fail
+ * across realm boundaries. Returning the hex string is the most robust path —
+ * the encoder handles it directly and there's no class identity to mis-match.
  */
-export function asBytes20(hexOrAccount: string | AppAccount): `0x${string}` {
+export function asAddress(hexOrAccount: string | AppAccount): `0x${string}` {
     const hex = typeof hexOrAccount === "string" ? hexOrAccount : hexOrAccount.h160Address;
     if (!hex.startsWith("0x")) return ("0x" + hex) as `0x${string}`;
     return hex as `0x${string}`;
 }
+
+/** @deprecated ABI now uses `address`; kept so existing call sites keep working. Use {@link asAddress}. */
+export const asBytes20 = asAddress;
 
 // ---------------------------------------------------------------------------
 // Account mapping (Revive)
@@ -418,13 +448,21 @@ const _mappedAccounts = new Set<string>();
 // `Revive::AccountUnmapped` until we submit the mapping tx ourselves. The helper is
 // idempotent (short-circuits when storage already has the entry), so the first-time
 // path costs one signature and subsequent calls are free.
-export async function ensureMapping(account: AppAccount): Promise<void> {
+/**
+ * Map an account using a pre-built ContractRuntime. Idempotent via
+ * `_mappedAccounts`. Split out from `ensureMapping` so contract init can map
+ * the origin *before* live registry resolution runs (see `ensureContractsReady`)
+ * — `fromLiveClient`'s `registry.getAddress()` view call dry-run-fails with
+ * `Revive::AccountUnmapped` if the query origin isn't mapped yet.
+ */
+async function mapAccountWithRuntime(
+    runtime: Parameters<typeof ensureContractAccountMapped>[0],
+    account: AppAccount,
+): Promise<void> {
     if (_mappedAccounts.has(account.address)) return;
-    await ensureContractsReady();
-    if (!_contractManager) throw new Error("Contract manager not ready");
     try {
         const mapped = await ensureContractAccountMapped(
-            _contractManager.getRuntime(),
+            runtime,
             account.address as never,
             account.signer,
         );
@@ -447,6 +485,18 @@ export async function ensureMapping(account: AppAccount): Promise<void> {
         }
         throw err;
     }
+}
+
+// pallet-revive on Paseo Next v2 requires every SS58 origin that calls a contract to
+// have an explicit Revive.map_account() entry. The first-time path costs one signature;
+// subsequent calls short-circuit. `ensureContractsReady()` already maps `_state.account`
+// during init (before live registry resolution), so for the signed-in account this is a
+// no-op — it stays public for tx call sites (register/updateResult) as an explicit guard.
+export async function ensureMapping(account: AppAccount): Promise<void> {
+    if (_mappedAccounts.has(account.address)) return;
+    await ensureContractsReady();
+    if (!_contractManager) throw new Error("Contract manager not ready");
+    await mapAccountWithRuntime(_contractManager.getRuntime(), account);
 }
 
 // ---------------------------------------------------------------------------

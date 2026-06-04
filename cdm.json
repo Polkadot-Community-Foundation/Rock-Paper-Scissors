@@ -1,137 +1,188 @@
 {
-  "targets": {
-    "acc2c3b5e912b762": {
-      "asset-hub": "wss://paseo-asset-hub-next-rpc.polkadot.io",
-      "bulletin": "https://paseo-bulletin-next-ipfs.polkadot.io"
-    }
-  },
   "dependencies": {
-    "acc2c3b5e912b762": {
-      "@example/leaderboard": "latest"
-    }
+    "@rps/leaderboard": "latest"
   },
   "contracts": {
-    "acc2c3b5e912b762": {
-      "@example/leaderboard": {
-        "version": 0,
-        "address": "0x474B84F0E8442fAD920A0EAc215427A949D98526",
-        "abi": [
-          {
-            "type": "constructor",
-            "inputs": [],
-            "stateMutability": "nonpayable"
-          },
-          {
-            "type": "function",
-            "name": "register",
-            "inputs": [],
-            "outputs": [
-              {
-                "name": "",
-                "type": "uint64"
-              }
-            ],
-            "stateMutability": "view"
-          },
-          {
-            "type": "function",
-            "name": "updateResult",
-            "inputs": [
-              {
-                "name": "new_cid",
-                "type": "string"
-              },
-              {
-                "name": "points_delta",
-                "type": "int64"
-              }
-            ],
-            "outputs": [],
-            "stateMutability": "nonpayable"
-          },
-          {
-            "type": "function",
-            "name": "getPlayerCount",
-            "inputs": [],
-            "outputs": [
-              {
-                "name": "",
-                "type": "uint64"
-              }
-            ],
-            "stateMutability": "view"
-          },
-          {
-            "type": "function",
-            "name": "getPlayerAt",
-            "inputs": [
-              {
-                "name": "index",
-                "type": "uint64"
-              }
-            ],
-            "outputs": [
-              {
-                "name": "",
-                "type": "bytes20"
-              }
-            ],
-            "stateMutability": "view"
-          },
-          {
-            "type": "function",
-            "name": "getPlayerCid",
-            "inputs": [
-              {
-                "name": "player",
-                "type": "bytes20"
-              }
-            ],
-            "outputs": [
-              {
-                "name": "",
-                "type": "string"
-              }
-            ],
-            "stateMutability": "view"
-          },
-          {
-            "type": "function",
-            "name": "getPlayerPoints",
-            "inputs": [
-              {
-                "name": "player",
-                "type": "bytes20"
-              }
-            ],
-            "outputs": [
-              {
-                "name": "",
-                "type": "int64"
-              }
-            ],
-            "stateMutability": "view"
-          },
-          {
-            "type": "function",
-            "name": "isRegistered",
-            "inputs": [
-              {
-                "name": "player",
-                "type": "bytes20"
-              }
-            ],
-            "outputs": [
-              {
-                "name": "",
-                "type": "bool"
-              }
-            ],
-            "stateMutability": "view"
-          }
-        ],
-        "metadataCid": "bafk2bzaceb3pgyaif3spg24msyyvr6eat3oxucfksk4nsfgohthtgbqx4qmxk"
-      }
+    "@rps/leaderboard": {
+      "version": 0,
+      "address": "0x85aaf18be2D2a482530A822A6722fb17E65f945F",
+      "abi": [
+        {
+          "inputs": [],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [],
+          "name": "register",
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "name": "new_cid",
+              "type": "string"
+            },
+            {
+              "name": "points_delta",
+              "type": "int64"
+            }
+          ],
+          "name": "updateResult",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "getPlayerCount",
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "name": "index",
+              "type": "uint64"
+            }
+          ],
+          "name": "getPlayerAt",
+          "outputs": [
+            {
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "name": "player",
+              "type": "address"
+            }
+          ],
+          "name": "getPlayerCid",
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "name": "player",
+              "type": "address"
+            }
+          ],
+          "name": "getPlayerPoints",
+          "outputs": [
+            {
+              "name": "",
+              "type": "int64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "name": "player",
+              "type": "address"
+            }
+          ],
+          "name": "isRegistered",
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "name": "Panic",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "name": "Error",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "AlreadyRegistered",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotRegistered",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "IndexOutOfBounds",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "InvalidCalldata",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "CalldataTooLarge",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NoSelector",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "UnknownSelector",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NonPayableValueReceived",
+          "type": "error"
+        }
+      ],
+      "metadataCid": "bafk2bzacect3ygup6jkp3vcslp26lmlwrwpt5mvugec43o3ivuaho5xlpxmo4"
     }
-  }
+  },
+  "registry": "0xf62c2ece29cd8df2e10040ecfa5a894a5c5d9cb0"
 }
