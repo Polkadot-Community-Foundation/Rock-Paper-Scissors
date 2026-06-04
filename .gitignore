@@ -4,3 +4,5 @@ target/
 .cdm/
 Cargo.lock
 package-lock.json
+.claude/skills/
+quests.json
