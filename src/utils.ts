@@ -45,13 +45,13 @@ async function ensurePermission(tag: "ChainSubmit" | "PreimageSubmit" | "Stateme
 }
 
 // ---------------------------------------------------------------------------
-// Account flow — direct against product-sdk (matches t3rminal pattern).
+// Account flow — direct against product-sdk.
 // We intentionally avoid @parity/product-sdk-signer because its SignerManager
 // goes through getLegacyAccounts() which the new desktop/android hosts reject.
 // ---------------------------------------------------------------------------
 
 // host-api-wrapper 0.8.x: createAccountsProvider now takes the sandbox transport
-// explicitly (matches t3rminal lib/host/connection.ts). Works on both Desktop
+// explicitly. Works on both Desktop
 // webview and dot.li iframe.
 const accountsProvider = createAccountsProvider(sandboxTransport);
 const accountIdCodec = AccountId();
@@ -63,7 +63,7 @@ const accountIdCodec = AccountId();
  * against that same host context. Appending `.dot` (or extracting a label)
  * makes the signer's identifier diverge from the host context and signing is
  * denied with `permission denied {expected: 'localhost:3000', got: '...dot'}`.
- * So mirror t3rminal (lib/host/accounts.ts): use the host verbatim.
+ * So use the host verbatim.
  */
 function getProductIdentifier(): string | null {
     if (typeof window === "undefined") return null;
@@ -249,7 +249,7 @@ let _polkadotClient: ReturnType<typeof createClient> | null = null;
  * Wake the Asset Hub chain follow before a contract call. The host container
  * tears down the follow when the tab is backgrounded long enough; the first
  * request after wake bails with "No active follow for this chain" until we
- * touch the client to trigger a re-follow. Same trick t3rminal uses.
+ * touch the client to trigger a re-follow.
  */
 export async function wakeChainFollow(): Promise<void> {
     if (!_polkadotClient) return;
@@ -313,7 +313,7 @@ export function stageCdmJson(cdmJson: any): void {
 /**
  * Lazy contract init. Holding an Asset Hub PolkadotClient open (with its
  * chain-head follow) at app startup interferes with Bulletin preimage submits
- * — t3rminal pattern is to only spin up the chain client when a contract call
+ * — only spin up the chain client when a contract call
  * is actually about to happen. This defers `createPapiProvider`/`createClient`
  * until the first `getContract()` consumer calls a method.
  */

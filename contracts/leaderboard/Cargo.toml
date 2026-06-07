@@ -5,6 +5,7 @@ edition.workspace = true
 description = "Leaderboard contract for Rock-Paper-Scissors — tracks player scores and game history CIDs"
 authors.workspace = true
 homepage.workspace = true
+license.workspace = true
 
 [lib]
 path = "lib.rs"

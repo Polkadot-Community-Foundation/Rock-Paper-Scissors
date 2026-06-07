@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Playground tutorial setup — runs after `playground mod` clones the repo.
+# Sample-app setup — installs dependencies after cloning the repo.
 # Safe to re-run. Should finish in under 2 minutes on a clean macOS/Linux box.
 
 set -euo pipefail
 
-echo "[setup] Rock Paper Scissors tutorial"
+echo "[setup] Rock Paper Scissors"
 echo "[setup] Branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
 
 # --- Node dependencies -------------------------------------------------------
@@ -19,7 +19,7 @@ if [ -f "package.json" ]; then
 fi
 
 # --- Rust / PVM contracts (optional) -----------------------------------------
-# Only applies to quest/level-3 and later. Earlier branches have no contracts.
+# Only needed if you intend to build/deploy the leaderboard contract.
 if [ -f "Cargo.toml" ]; then
     echo "[setup] Rust workspace detected."
     if ! command -v cargo >/dev/null 2>&1; then
@@ -41,13 +41,4 @@ Next steps:
   npm run dev              # start the dev server
   open http://localhost:5173 in Polkadot Desktop
 
-Quest progression (all on YOUR fork — not the template):
-  git checkout quest/level-1   # start here
-  git checkout quest/level-2   # Bulletin storage
-  git checkout quest/level-3   # Leaderboard contract (requires Rust + cdm)
-  git checkout quest/level-4   # Statement Store multiplayer
-  git checkout main            # complete reference implementation
-
-See WORKFLOW.md for the fork model and branch rules.
-See .claude/skills/level-N-*.md for per-quest AI context.
 EOF

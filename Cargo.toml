@@ -6,6 +6,7 @@ members = ["contracts/leaderboard"]
 version = "0.1.0"
 authors = ["RPS Game"]
 homepage = "https://polkadot.com/"
+license = "GPL-3.0-or-later"
 edition = "2024"
 
 [workspace.dependencies]

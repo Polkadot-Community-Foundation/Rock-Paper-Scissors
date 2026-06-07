@@ -6,3 +6,4 @@ Cargo.lock
 package-lock.json
 .claude/skills/
 quests.json
+.DS_Store

@@ -1,5 +1,8 @@
 # RPS Game
 
+> [!WARNING]
+> The following is a prototype, reference implementation, and proof-of-concept. This open source code is provided for research, experimentation, and developer education only. This code has not been audited, is actively experimental, and may contain bugs, vulnerabilities, or incomplete features. Use at your own risk.
+
 Decentralized rock-paper-scissors game, with on-chain leaderboard and game history.
 
 ## Modes
@@ -8,16 +11,6 @@ Decentralized rock-paper-scissors game, with on-chain leaderboard and game histo
 - **Multiplayer** — play against another player via Statement Store (commit-reveal anti-cheat)
 
 Scoring: win **+2**, loss **−1**, draw **0**.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| UI | React 19 + Vite + TypeScript |
-| Wallet | `@polkadot-apps/signer` (Host API / extension / dev) |
-| Storage | `@polkadot-apps/bulletin` (JSON history → CID) |
-| Multiplayer | `@polkadot-apps/statement-store` (real-time pub/sub) |
-| Smart contract | `@dotdm/cdm` + PVM (Rust) on Asset Hub |
 
 ## How it works
 
@@ -35,18 +28,10 @@ Scoring: win **+2**, loss **−1**, draw **0**.
 ```bash
 npm install
 
-# Smart contract
-cdm build
-cdm deploy -n paseo
-cdm install @rps/leaderboard -n paseo
-
 # Dev server
 npm run dev
-
-# Production deploy to Bulletin
-npm run build:frontend
-bulletin-deploy ./dist <your-domain>.dot
 ```
+Open polkadot desktop on localhost.
 
 > Deploying **your own copy** (own contract, own `.dot` name, published to the
 > playground)? Follow the step-by-step [DEPLOYMENT.md](./DEPLOYMENT.md).
@@ -54,20 +39,7 @@ bulletin-deploy ./dist <your-domain>.dot
 > Account needs PAS tokens on Asset Hub ([faucet](https://faucet.polkadot.io/)) and Bulletin chain ([faucet](https://paritytech.github.io/polkadot-bulletin-chain/authorizations?tab=faucet)).
 > Multiplayer requires running inside the Polkadot Desktop container (Host API).
 
-## Structure
+## License
 
-```
-contracts/leaderboard/lib.rs   # PVM smart contract
-src/
-├── App.tsx                    # Routing + account selector
-├── utils.ts                   # SignerManager, BulletinClient, CDM init
-├── types.ts                   # Move, Round, GameData, PlayerData
-└── pages/
-    ├── Home.tsx               # Mode picker + profile
-    ├── MyProfile.tsx          # Stats + history
-    ├── SoloGame.tsx           # Solo mode
-    ├── MultiplayerLobby.tsx   # Create/join room
-    ├── MultiplayerGame.tsx    # Commit-reveal multiplayer
-    ├── Leaderboard.tsx        # Top players list
-    └── PlayerHistory.tsx      # Detailed player history
-```
+Licensed under the [GNU General Public License v3.0 or later](./LICENSE) (GPL-3.0-or-later).
+
