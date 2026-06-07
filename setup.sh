@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Playground tutorial setup — runs after `dot mod` clones the repo.
+# Playground tutorial setup — runs after `playground mod` clones the repo.
 # Safe to re-run. Should finish in under 2 minutes on a clean macOS/Linux box.
 
 set -euo pipefail
@@ -47,9 +47,6 @@ Quest progression (all on YOUR fork — not the template):
   git checkout quest/level-3   # Leaderboard contract (requires Rust + cdm)
   git checkout quest/level-4   # Statement Store multiplayer
   git checkout main            # complete reference implementation
-
-Or switch levels via the CLI (recommended):
-  dot mod rps-game.dot --quest level-N
 
 See WORKFLOW.md for the fork model and branch rules.
 See .claude/skills/level-N-*.md for per-quest AI context.
