@@ -38,7 +38,7 @@ npm install
 # Smart contract
 cdm build
 cdm deploy -n paseo
-cdm install @example/leaderboard -n paseo
+cdm install @rps/leaderboard -n paseo
 
 # Dev server
 npm run dev
@@ -47,6 +47,9 @@ npm run dev
 npm run build:frontend
 bulletin-deploy ./dist <your-domain>.dot
 ```
+
+> Deploying **your own copy** (own contract, own `.dot` name, published to the
+> playground)? Follow the step-by-step [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 > Account needs PAS tokens on Asset Hub ([faucet](https://faucet.polkadot.io/)) and Bulletin chain ([faucet](https://paritytech.github.io/polkadot-bulletin-chain/authorizations?tab=faucet)).
 > Multiplayer requires running inside the Polkadot Desktop container (Host API).
