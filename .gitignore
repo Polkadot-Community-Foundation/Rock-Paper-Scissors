@@ -7,3 +7,15 @@ package-lock.json
 .claude/skills/
 quests.json
 .DS_Store
+
+# Env files (keep the bare .env covered; allow-list the example)
+.env*
+!.env.example
+
+# AI tool session / local state
+.claude/sessions/
+.claude/cache/
+**/settings.local.json
+.cursor/
+.aider*
+.codeium/

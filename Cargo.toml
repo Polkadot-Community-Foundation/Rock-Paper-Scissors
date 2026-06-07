@@ -10,6 +10,6 @@ license = "GPL-3.0-or-later"
 edition = "2024"
 
 [workspace.dependencies]
-pvm-contract-sdk = { git = "https://github.com/paritytech/cargo-pvm-contract", branch = "sm/cdm", features = ["alloc"] }
+pvm-contract-sdk = { git = "https://github.com/paritytech/cargo-pvm-contract", rev = "90f3582a999ee843f79c56378392cfae3c05f0f3", features = ["alloc"] }
 polkavm-derive = "0.31"
 picoalloc = "5.2"
