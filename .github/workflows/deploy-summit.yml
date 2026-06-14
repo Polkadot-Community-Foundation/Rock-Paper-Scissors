@@ -55,7 +55,7 @@ env:
     # meta-registry (0xa5747e60…0141) via @polkadot-community-foundation/cdm-env.
     # Bump REF as the fork advances; the hard requirement is cdm-env >= 2.1.0.
     PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
-    PLAYGROUND_CLI_REF: 648bb7e94f5f0eadd9b0715e6e584caea2d7f159
+    PLAYGROUND_CLI_REF: 9bc441548c6915fe612d031b83684797f3e6c2a0
     PLAYGROUND_TAG: gaming
 
 jobs:
@@ -126,11 +126,7 @@ jobs:
             - name: Build playground CLI binary
               working-directory: .playground-cli
               run: |
-                  # NOT --frozen-lockfile: the pinned playground-cli fork commit
-                  # ships a pnpm-lock.yaml that lags its package.json (cdm-env
-                  # repoint to @polkadot-community-foundation@^2.1.0). package.json
-                  # still pins ^2.1.0 so w3s resolves; the Sanity step proves it.
-                  pnpm install --no-frozen-lockfile
+                  pnpm install --frozen-lockfile
                   bun build --compile src/index.ts --outfile "$RUNNER_TEMP/playground"
                   "$RUNNER_TEMP/playground" --version
 
