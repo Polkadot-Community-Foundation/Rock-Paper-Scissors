@@ -142,46 +142,13 @@ jobs:
             # reverts `Unauthorized` for the deploy signer (the playground team
             # disables CI self-publish there for the same reason). Keeping it out
             # of the live path means a publish revert never takes the app down.
-            - name: Deploy rock-paper-scissors.dot (storage + name)
-              env:
-                  MNEMONIC: ${{ secrets.MNEMONIC }}
-              run: |
-                  set -euo pipefail
-                  "$RUNNER_TEMP/playground" deploy \
-                    --env summit \
-                    --signer dev --suri "$MNEMONIC" \
-                    --domain rock-paper-scissors \
-                    --buildDir dist --no-build \
-                    --no-contracts \
-                    --no-playground
-
-            # rps-game.dot is pre-registered to 5Fk8 via the DotNS `registerReserved`
-            # owner-override (8 chars = PoP-Full gated); this upserts its contenthash
-            # to the same build. MUST pass (the name is already owned by us).
-            - name: Bind rps-game.dot alias
-              if: ${{ github.event_name != 'workflow_dispatch' || inputs.bind_alias }}
-              env:
-                  MNEMONIC: ${{ secrets.MNEMONIC }}
-              run: |
-                  set -euo pipefail
-                  "$RUNNER_TEMP/playground" deploy \
-                    --env summit \
-                    --signer dev --suri "$MNEMONIC" \
-                    --domain rps-game \
-                    --buildDir dist --no-build \
-                    --no-contracts \
-                    --no-playground
-
-            # ── Best-effort: list rock-paper-scissors.dot in the playground Apps grid
-            #    (+ moddable source link). `publish` on the playground registry is
-            #    authorization-gated on Summit and may revert `Unauthorized`; this is
-            #    `continue-on-error` so it never blocks the live deploy above. If it
-            #    stays blocked, a playground admin pins the app instead (see
-            #    .github/DEPLOY_SUMMIT.md "Apps-grid listing"). Storage is idempotent,
-            #    so the re-upload here resolves to the same CID.
-            - name: Publish to playground Apps grid (best-effort)
-              if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
-              continue-on-error: true
+            # Host + bind + publish in one headless call (the tutorial pattern).
+            # The Apps-grid `publish` works inline now: playground-cli 9bc4415
+            # routes --env through the registry-publish leg (was Paseo-only, which
+            # surfaced as a spurious `Unauthorized`). So the earlier "live deploy +
+            # best-effort separate publish" split is no longer needed — a real
+            # publish failure here SHOULD fail the run.
+            - name: Deploy rock-paper-scissors.dot (host + bind + publish)
               env:
                   MNEMONIC: ${{ secrets.MNEMONIC }}
               run: |
@@ -194,6 +161,30 @@ jobs:
                     --no-contracts \
                     --playground --moddable --tag "$PLAYGROUND_TAG"
 
+            # rps-game.dot is an ALIAS: same build, host + bind only (no second
+            # grid listing). That needs a HOST-ONLY headless deploy — the `--yes`
+            # flag (forces headless without `--playground`). `--yes` only exists in
+            # newer upstream playground-cli (e.g. 5fc720c), NOT in the pinned
+            # 9bc4415, and `--no-playground` is not a real flag. So this is
+            # `continue-on-error` until PLAYGROUND_CLI_REF is bumped to a fork
+            # commit that carries upstream's `--yes`; the primary above is unaffected.
+            # rps-game.dot is pre-registered to 5Fk8 via DotNS `registerReserved`
+            # (8 chars = PoP-Full gated), so this just upserts its contenthash.
+            - name: Bind rps-game.dot alias (host-only; needs CLI --yes)
+              if: ${{ github.event_name != 'workflow_dispatch' || inputs.bind_alias }}
+              continue-on-error: true
+              env:
+                  MNEMONIC: ${{ secrets.MNEMONIC }}
+              run: |
+                  set -euo pipefail
+                  "$RUNNER_TEMP/playground" deploy \
+                    --env summit \
+                    --signer dev --suri "$MNEMONIC" \
+                    --domain rps-game \
+                    --buildDir dist --no-build \
+                    --no-contracts \
+                    --yes
+
             - name: Deployment summary
               if: always()
               run: |
@@ -203,7 +194,7 @@ jobs:
                     echo "Primary &nbsp; https://rock-paper-scissors.dot.li  (\`rock-paper-scissors.dot\`)"
                     echo "Alias &nbsp;&nbsp;&nbsp; https://rps-game.dot.li  (\`rps-game.dot\`)"
                     echo
-                    echo "Apps-grid publish is best-effort (authorization-gated on Summit). If that"
-                    echo "step is red, the app is still live — a playground admin pins it to the grid."
-                    echo "See .github/DEPLOY_SUMMIT.md \"Apps-grid listing\"."
+                    echo "Primary is host + bind + Apps-grid publish in one (must pass)."
+                    echo "The rps-game.dot alias bind is host-only (--yes) and is best-effort"
+                    echo "until PLAYGROUND_CLI_REF carries upstream's --yes flag."
                   } >> "$GITHUB_STEP_SUMMARY"
