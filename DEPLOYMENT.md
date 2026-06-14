@@ -19,6 +19,75 @@ Two tools do the work:
 Rough time: 30 minutes end to end. The slow parts are the toolchain
 install and the first Rust build.
 
+> **Two audiences for this guide.** Sections 0–8 below are the **community
+> "deploy your own copy"** flow, which targets the **public playground
+> network** via the Playground CLI. The repo's `main` branch, however, is
+> configured for the **official Summit deployment** (`rps-game.dot`) — its
+> frontend builds against the Summit Asset Hub descriptor and the Summit CDM
+> registry. See **[Official Summit deployment](#official-summit-deployment-maintainers)**
+> just below. If you're forking to deploy on the public playground network,
+> read the **[forker note](#forking-to-the-public-playground-network)** first.
+
+## Official Summit deployment (maintainers)
+
+The official instance lives on the **Summit** network, served at two names that
+point at the same build — **`rock-paper-scissors.dot`** (primary, in the Apps
+grid + moddable) and **`rps-game.dot`** (alias). It is a two-leg deploy; the
+contract leg is manual (VM), the frontend leg is CI. **Full notes:
+[`.github/DEPLOY_SUMMIT.md`](.github/DEPLOY_SUMMIT.md).**
+
+1. **Contract → Summit Asset Hub** (manual / VM). On the funded,
+   Bulletin-authorized deployer (the W3S publisher `5Fk8…` — `cdm deploy`
+   publishes the ABI to Bulletin, so the signer must hold a Bulletin allowance):
+
+   ```sh
+   cdm account set -n w3s --mnemonic "<5Fk8 mnemonic>"   # then: cdm account map -n w3s
+   npm run build:contracts          # cdm build
+   npm run deploy:summit            # cdm deploy -n w3s → Summit registry 0xa5747e60…
+   cdm i -n w3s @rps/leaderboard    # sync the deployed address into cdm.json
+   git add cdm.json && git commit   # lock the address; pushing main rebuilds the SPA
+   ```
+
+   `@rps/leaderboard` is first-come on the Summit CDM registry; `5Fk8` claims
+   it. `cdm deploy` does **not** write `cdm.json` — the `cdm i` step does.
+
+2. **Frontend → Summit Bulletin + both names** (CI). Handled by
+   `.github/workflows/deploy-summit.yml` on push to `main` (or
+   `workflow_dispatch`). It builds the SPA, asserts the bundle is Paseo-free,
+   builds the PCF `playground-cli` fork (Summit-capable), and runs
+   `playground deploy --env summit` headless: `rock-paper-scissors.dot` gets
+   registered + bound + **published to the playground Apps grid** (`--playground
+   --moddable`); `rps-game.dot` is bound to the same build. Requires the repo
+   secret **`MNEMONIC`** (= the `5Fk8` mnemonic) and a `production` GitHub
+   Environment.
+
+   > `PRODUCT_ID = "rps-game.dot"` in `src/utils.ts` is fixed and **decoupled**
+   > from the serving name — the app resolves the same product account at either
+   > URL. Don't change it without intending to move every user's account.
+
+   > **`rps-game.dot` is 8 chars → PoP-Full gated.** One-time, register it to
+   > `5Fk8` via the DotNS `registerReserved` owner-override (the t3rminal
+   > pattern) before CI can bind it; until then the alias step stays red but does
+   > not block the primary deploy. `rock-paper-scissors.dot` (19 chars) is open —
+   > no pre-step. See [`.github/DEPLOY_SUMMIT.md`](.github/DEPLOY_SUMMIT.md).
+
+Bulletin storage expires (~14 days); renew per
+`summit-deployer-skills/guides/OPS_BULLETIN_RENEWAL_RUNBOOK.md`.
+
+### Forking to the public playground network
+
+`main` builds for **Summit**. To deploy your own copy on the **public
+playground** network using the community flow below, first point the frontend
+and manifest back at Paseo:
+
+- `src/utils.ts`: import the `paseo-asset-hub` descriptor (revert the three
+  `summit_asset_hub` references) — or your build will bake the Summit chain.
+- `cdm.json`: set `"registry"` back to the Paseo registry
+  `0xf62c2ece29cd8df2e10040ecfa5a894a5c5d9cb0`.
+- Use `npm run deploy` (the `-n paseo` script), not `deploy:summit`.
+
+Then follow sections 0–8.
+
 ## 0. Prerequisites
 
 You need three things installed:
