@@ -55,7 +55,7 @@ env:
     # meta-registry (0xa5747e60…0141) via @polkadot-community-foundation/cdm-env.
     # Bump REF as the fork advances; the hard requirement is cdm-env >= 2.1.0.
     PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
-    PLAYGROUND_CLI_REF: 9bc441548c6915fe612d031b83684797f3e6c2a0
+    PLAYGROUND_CLI_REF: b41feccf9b42334a6d7366a72019896196d48a13
     PLAYGROUND_TAG: gaming
 
 jobs:
@@ -162,15 +162,14 @@ jobs:
                     --playground --moddable --tag "$PLAYGROUND_TAG"
 
             # rps-game.dot is an ALIAS: same build, host + bind only (no second
-            # grid listing). That needs a HOST-ONLY headless deploy — the `--yes`
-            # flag (forces headless without `--playground`). `--yes` only exists in
-            # newer upstream playground-cli (e.g. 5fc720c), NOT in the pinned
-            # 9bc4415, and `--no-playground` is not a real flag. So this is
-            # `continue-on-error` until PLAYGROUND_CLI_REF is bumped to a fork
-            # commit that carries upstream's `--yes`; the primary above is unaffected.
-            # rps-game.dot is pre-registered to 5Fk8 via DotNS `registerReserved`
-            # (8 chars = PoP-Full gated), so this just upserts its contenthash.
-            - name: Bind rps-game.dot alias (host-only; needs CLI --yes)
+            # grid listing). That needs a HOST-ONLY headless deploy = the `--yes`
+            # flag (forces headless without `--playground`), which the pinned
+            # b41fecc carries (upstream sync onto the env-aware-publish fix).
+            # `continue-on-error` is kept as a safety net so an alias hiccup never
+            # blocks the must-pass primary above. rps-game.dot is pre-registered to
+            # 5Fk8 via DotNS `registerReserved` (8 chars = PoP-Full gated), so this
+            # just upserts its contenthash to the same build.
+            - name: Bind rps-game.dot alias (host-only via --yes)
               if: ${{ github.event_name != 'workflow_dispatch' || inputs.bind_alias }}
               continue-on-error: true
               env:
@@ -195,6 +194,6 @@ jobs:
                     echo "Alias &nbsp;&nbsp;&nbsp; https://rps-game.dot.li  (\`rps-game.dot\`)"
                     echo
                     echo "Primary is host + bind + Apps-grid publish in one (must pass)."
-                    echo "The rps-game.dot alias bind is host-only (--yes) and is best-effort"
-                    echo "until PLAYGROUND_CLI_REF carries upstream's --yes flag."
+                    echo "The rps-game.dot alias bind is host-only (--yes); continue-on-error"
+                    echo "is a safety net so it never blocks the must-pass primary."
                   } >> "$GITHUB_STEP_SUMMARY"
