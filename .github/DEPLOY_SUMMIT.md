@@ -44,12 +44,24 @@ two names:
 
 | Name | Class | How |
 |---|---|---|
-| `rock-paper-scissors.dot` | 19 chars → **open** | CI registers + binds + **publishes** to the playground Apps grid (`--playground --moddable --tag gaming`). No gate. |
-| `rps-game.dot` | 8 chars → **PoP-Full gated** | CI binds the contenthash only (`--no-playground`). **Prerequisite:** pre-register it to `5Fk8` (below). |
+| `rock-paper-scissors.dot` | 19 chars → **open** | CI registers + binds the contenthash (`--no-playground`). No gate. |
+| `rps-game.dot` | 8 chars → **PoP-Full gated** | CI binds the contenthash (`--no-playground`). **Prerequisite:** pre-register it to `5Fk8` (below). |
 
 The same `dist/` serves both names — `PRODUCT_ID = "rps-game.dot"` is hardcoded in
 `src/utils.ts` (not derived from the URL), so the app resolves the same product
 account regardless of which name it is served at.
+
+### Apps-grid listing (best-effort + admin pin)
+
+The CI has a separate **best-effort** step that runs `playground deploy … --playground
+--moddable` to list `rock-paper-scissors.dot` in the playground Apps grid. **It is
+`continue-on-error`** because the playground registry's `publish` is authorization-gated
+on Summit and reverts `Unauthorized` for the deploy signer — the playground team disables
+CI self-publish there for the same reason. The app is fully live without it. To actually
+surface RPS in the Apps grid, a **playground admin/sudo pins it** from
+`playground-app-community` (the curation model: `pin-apps.ts rock-paper-scissors.dot`),
+rather than the app self-publishing. The best-effort step still attempts the publish each
+run, so if that authorization is ever granted the listing happens automatically.
 
 ### One-time: register the `rps-game.dot` alias (owner-override)
 
