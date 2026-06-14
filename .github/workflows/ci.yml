@@ -1,0 +1,41 @@
+# PR gate: type-check + build the frontend and assert it stays Summit-bound.
+# `npm run build` runs `tsc -b` (type-check) then `vite build`, so this covers
+# both. No deploy here — that lives in deploy-summit.yml on push to main.
+name: CI
+
+on:
+    pull_request:
+        branches: [main]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        name: Type-check & build
+        runs-on: ubuntu-latest
+        env:
+            NODE_OPTIONS: "--max-old-space-size=8192"
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+
+            - name: Install dependencies
+              run: npm install --no-audit --no-fund
+
+            - name: Build (tsc -b && vite build)
+              run: npm run build
+
+            - name: Assert bundle is Paseo-free
+              run: |
+                  if grep -rIl "paseo-asset-hub-next\|paseo-bulletin-next\|paseo_asset_hub" dist/; then
+                    echo "::error::Built bundle contains Paseo endpoints/descriptor — Summit retarget regressed."
+                    exit 1
+                  fi
+                  echo "✓ dist/ is Paseo-free"

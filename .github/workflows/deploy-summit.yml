@@ -1,0 +1,189 @@
+# Deploy the Rock-Paper-Scissors frontend to the Web3 Summit network, bound to
+# TWO DotNS names that point at the same build:
+#   • rock-paper-scissors.dot  — primary (19 chars, "open" PoP class). CI registers
+#       it headless, binds the contenthash, and publishes it (moddable) into the
+#       @w3s/playground-registry so it shows in the playground Apps grid and
+#       attendees can `playground mod rock-paper-scissors.dot`.
+#   • rps-game.dot             — alias (8 chars, PoP-Full gated). Must be
+#       pre-registered to the deployer (5Fk8) via the DotNS `registerReserved`
+#       owner-override FIRST (the t3rminal pattern — see .github/DEPLOY_SUMMIT.md);
+#       then CI just upserts its contenthash to the same build.
+#
+# This is the FRONTEND leg. The CONTRACT leg (`@rps/leaderboard` via `cdm deploy`)
+# is a separate manual/VM step that must run FIRST so the built bundle bakes the
+# deployed address — see DEPLOYMENT.md "Official Summit deployment" and the dossier.
+#
+# Deploy vehicle = `playground deploy` (playground-cli). It is the only tool that
+# does host + bind + registry-publish + moddable in one shot, and runs headless
+# when --signer/--domain/--buildDir/--playground/--contracts are all specified.
+# playground-cli is a PRIVATE PCF package whose Summit wiring (the @w3s CDM
+# meta-registry via @polkadot-community-foundation/cdm-env) isn't in the public
+# paritytech binaries — so CI builds the PCF fork from source at a pinned SHA.
+name: Deploy to Summit
+
+on:
+    workflow_dispatch:
+        inputs:
+            publish:
+                description: "Publish rock-paper-scissors.dot to the playground registry (moddable). Off = host + bind name only."
+                type: boolean
+                default: true
+            bind_alias:
+                description: "Also bind the rps-game.dot alias (requires its owner-override pre-registration to 5Fk8)."
+                type: boolean
+                default: true
+    push:
+        branches: [main]
+        # Day-2 redeploys only when app content changes; run the greenfield first
+        # deploy via workflow_dispatch so it can be watched (it registers names, ~2 SUM).
+        paths:
+            - "src/**"
+            - "index.html"
+            - "vite.config.ts"
+            - "tsconfig*.json"
+            - "package.json"
+            - "cdm.json"
+            - ".github/workflows/deploy-summit.yml"
+
+# One signer (5Fk8) signs serially on-chain — never run two deploys at once.
+concurrency:
+    group: deploy-summit-rps
+    cancel-in-progress: false
+
+env:
+    # playground-cli (PCF fork) carries `--env summit` + resolves the @w3s CDM
+    # meta-registry (0xa5747e60…0141) via @polkadot-community-foundation/cdm-env.
+    # Bump REF as the fork advances; the hard requirement is cdm-env >= 2.1.0.
+    PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
+    PLAYGROUND_CLI_REF: 648bb7e94f5f0eadd9b0715e6e584caea2d7f159
+    PLAYGROUND_TAG: gaming
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        timeout-minutes: 25
+        # Gate behind a GitHub Environment so MNEMONIC + optional required
+        # reviewers live behind `production`. Create it in repo Settings.
+        environment: production
+        steps:
+            - name: Checkout Rock-Paper-Scissors
+              uses: actions/checkout@v4
+              # `--moddable` records `git remote get-url origin` as the public
+              # source repo — actions/checkout sets it to this repo's https URL.
+
+            - name: Guard — MNEMONIC must be set
+              env:
+                  MNEMONIC: ${{ secrets.MNEMONIC }}
+              run: |
+                  if [ -z "$MNEMONIC" ]; then
+                    echo "::error::secrets.MNEMONIC is not set. Add the 5Fk8 deployer mnemonic as a repo secret (see .github/DEPLOY_SUMMIT.md)."
+                    exit 1
+                  fi
+
+            - name: Setup Node 22
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+
+            - name: Setup pnpm (to build playground-cli)
+              uses: pnpm/action-setup@v4
+              with:
+                  version: "11.5.2"
+
+            - name: Setup Bun (playground-cli compile + runtime)
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            # ── App leg: build the SPA (npm — the repo gitignores the lockfile) ──
+            - name: Install app deps
+              run: npm install --no-audit --no-fund
+
+            - name: Build SPA
+              run: npm run build # tsc -b && vite build -> ./dist (relative base, IPFS-ready)
+
+            - name: Verify build output
+              run: test -f dist/index.html || (echo "::error::dist/index.html missing after build" && exit 1)
+
+            # Guard the hard-won retarget: a regression to the Paseo descriptor or
+            # endpoints must fail the deploy, not ship a wrong-chain bundle.
+            - name: Assert bundle is Paseo-free
+              run: |
+                  if grep -rIl "paseo-asset-hub-next\|paseo-bulletin-next\|paseo_asset_hub" dist/; then
+                    echo "::error::Built bundle contains Paseo endpoints/descriptor — Summit retarget regressed."
+                    exit 1
+                  fi
+                  echo "✓ dist/ is Paseo-free"
+
+            # ── Tooling leg: build the Summit-capable playground CLI from the fork ──
+            - name: Checkout playground-cli (PCF fork, pinned)
+              uses: actions/checkout@v4
+              with:
+                  repository: ${{ env.PLAYGROUND_CLI_REPO }}
+                  ref: ${{ env.PLAYGROUND_CLI_REF }}
+                  path: .playground-cli
+
+            - name: Build playground CLI binary
+              working-directory: .playground-cli
+              run: |
+                  pnpm install --frozen-lockfile
+                  bun build --compile src/index.ts --outfile "$RUNNER_TEMP/playground"
+                  "$RUNNER_TEMP/playground" --version
+
+            - name: Sanity — Summit CDM registry resolves (w3s populated)
+              working-directory: .playground-cli
+              run: |
+                  node --input-type=module -e "import {getRegistryAddress} from '@polkadot-community-foundation/cdm-env'; const a=getRegistryAddress('w3s'); if(!a){console.error('::error::cdm-env w3s registry address is empty — Summit publish would fail'); process.exit(1)} console.log('w3s CDM registry =', a)"
+
+            # ── Deploy primary: rock-paper-scissors.dot (host + bind + publish) ──
+            - name: Deploy rock-paper-scissors.dot
+              env:
+                  MNEMONIC: ${{ secrets.MNEMONIC }}
+                  # workflow_dispatch can turn publish off; push always publishes.
+                  PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == false && 'no' || 'yes' }}
+              run: |
+                  set -euo pipefail
+                  PUBLISH_FLAGS="--playground --moddable --tag $PLAYGROUND_TAG"
+                  if [ "$PUBLISH" = "no" ]; then
+                    PUBLISH_FLAGS="--no-playground"   # isFullySpecified still needs a boolean playground flag
+                  fi
+                  "$RUNNER_TEMP/playground" deploy \
+                    --env summit \
+                    --signer dev --suri "$MNEMONIC" \
+                    --domain rock-paper-scissors \
+                    --buildDir dist --no-build \
+                    --no-contracts \
+                    $PUBLISH_FLAGS
+
+            # ── Bind alias: rps-game.dot → same build (no second Apps-grid card) ──
+            # Requires rps-game.dot pre-registered to 5Fk8 via the DotNS
+            # `registerReserved` owner-override (8 chars = PoP-Full gated). Until
+            # that one-time step is done this step fails the PoP gate — kept
+            # continue-on-error so it never blocks the primary deploy above.
+            - name: Bind rps-game.dot alias
+              if: ${{ github.event_name != 'workflow_dispatch' || inputs.bind_alias }}
+              continue-on-error: true
+              env:
+                  MNEMONIC: ${{ secrets.MNEMONIC }}
+              run: |
+                  set -euo pipefail
+                  "$RUNNER_TEMP/playground" deploy \
+                    --env summit \
+                    --signer dev --suri "$MNEMONIC" \
+                    --domain rps-game \
+                    --buildDir dist --no-build \
+                    --no-contracts \
+                    --no-playground
+
+            - name: Deployment summary
+              if: always()
+              run: |
+                  {
+                    echo "### Rock-Paper-Scissors → Summit"
+                    echo
+                    echo "Primary &nbsp; https://rock-paper-scissors.dot.li  (\`rock-paper-scissors.dot\`)"
+                    echo "Alias &nbsp;&nbsp;&nbsp; https://rps-game.dot.li  (\`rps-game.dot\` — needs owner-override pre-reg)"
+                    echo
+                    echo "If the alias step is red: register rps-game.dot to 5Fk8 via the DotNS"
+                    echo "\`registerReserved\` owner-override (see .github/DEPLOY_SUMMIT.md), then re-run."
+                  } >> "$GITHUB_STEP_SUMMARY"

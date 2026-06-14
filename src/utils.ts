@@ -13,7 +13,7 @@ import {
 } from "@parity/product-sdk-signer";
 import { createChainClient } from "@parity/product-sdk-chain-client";
 import { ContractManager, createContractRuntimeFromClient, ensureContractAccountMapped } from "@parity/product-sdk-contracts";
-import { paseo_asset_hub } from "@parity/product-sdk-descriptors/paseo-asset-hub";
+import { summit_asset_hub } from "@parity/product-sdk-descriptors/summit-asset-hub";
 import type { PolkadotClient, PolkadotSigner } from "polkadot-api";
 import { blake2b } from "@noble/hashes/blake2.js";
 import { CID } from "multiformats/cid";
@@ -66,7 +66,7 @@ export function getAppAccountId(): [string, number] {
 /**
  * SignerManager wired to the Host API. The host derives an app-scoped product
  * account from `dotNsIdentifier`; HostProvider pins signing to
- * `createTransaction`, so pallet-revive's Paseo Next v2 signed extensions
+ * `createTransaction`, so pallet-revive's Summit Asset Hub signed extensions
  * (AsPgas, AsRingAlias, CheckWeight, WeightReclaim) are forwarded to the host
  * as opaque bytes rather than going through the PJS bridge that rejects unknown
  * extensions. It also requests the host's `ChainSubmit` permission on connect.
@@ -318,13 +318,13 @@ async function ensureContractsReady(): Promise<void> {
 
         // Asset Hub access goes through the host's chain client — both dev
         // (localhost in Polkadot Desktop) and prod (dot.li) run inside a host.
-        // `createChainClient` routes every connection through the host provider
-        // (the `rpcs` field is unused, kept only for API compatibility), so the
-        // host never prompts "Allow Access to Web Domains" for a raw RPC endpoint,
-        // and the chain identity comes from the descriptor — no hardcoded genesis.
+        // `createChainClient` routes every connection through the host provider,
+        // so the host never prompts "Allow Access to Web Domains" for a raw RPC
+        // endpoint, and the chain identity comes from the descriptor — no
+        // hardcoded genesis or RPC. (product-sdk-chain-client 0.7 dropped the
+        // formerly-unused `rpcs` field; the host owns endpoint selection.)
         const chainClient = await createChainClient({
-            chains: { assetHub: paseo_asset_hub },
-            rpcs: { assetHub: ["wss://paseo-asset-hub-next-rpc.polkadot.io"] },
+            chains: { assetHub: summit_asset_hub },
         });
         const client = chainClient.raw.assetHub;
         _polkadotClient = client;
@@ -357,13 +357,13 @@ async function ensureContractsReady(): Promise<void> {
         // query origin isn't mapped — surfacing as ContractLiveAddressResolutionError.
         // Build a plain runtime (no registry query) to perform the mapping first.
         // (ChainSubmit permission already granted at the top of this init.)
-        const initRuntime = createContractRuntimeFromClient(client, paseo_asset_hub);
+        const initRuntime = createContractRuntimeFromClient(client, summit_asset_hub);
         await mapAccountWithRuntime(initRuntime, _state.account);
 
         _contractManager = await ContractManager.fromLiveClient(
             _cdmJson,
             client,
-            paseo_asset_hub,
+            summit_asset_hub,
             {
                 defaultOrigin: _state.account.address as never,
                 defaultSigner: _state.account.signer,
@@ -433,7 +433,7 @@ export const asBytes20 = asAddress;
 
 const _mappedAccounts = new Set<string>();
 
-// pallet-revive on Paseo Next v2 requires every SS58 origin that calls a contract to
+// pallet-revive on Summit Asset Hub requires every SS58 origin that calls a contract to
 // have an explicit Revive.map_account() entry. Product accounts are NOT pre-mapped by
 // the host — first contract call from a fresh product account dry-run-fails with
 // `Revive::AccountUnmapped` until we submit the mapping tx ourselves. The helper is
@@ -478,7 +478,7 @@ async function mapAccountWithRuntime(
     }
 }
 
-// pallet-revive on Paseo Next v2 requires every SS58 origin that calls a contract to
+// pallet-revive on Summit Asset Hub requires every SS58 origin that calls a contract to
 // have an explicit Revive.map_account() entry. The first-time path costs one signature;
 // subsequent calls short-circuit. `ensureContractsReady()` already maps `_state.account`
 // during init (before live registry resolution), so for the signed-in account this is a
@@ -495,7 +495,7 @@ export async function ensureMapping(account: AppAccount): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const GATEWAYS = [
-    "https://paseo-bulletin-next-ipfs.polkadot.io/ipfs/",
+    "https://summit-ipfs.polkadot.io/ipfs/",
     "https://dweb.link/ipfs/",
     "https://ipfs.io/ipfs/",
     "https://nftstorage.link/ipfs/",
