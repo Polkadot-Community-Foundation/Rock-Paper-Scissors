@@ -5,7 +5,7 @@
   "contracts": {
     "@rps/leaderboard": {
       "version": 0,
-      "address": "0x85aaf18be2D2a482530A822A6722fb17E65f945F",
+      "address": "0xf3A06D11BDf5d01fD27D767Cd88e277070026AeE",
       "abi": [
         {
           "inputs": [],
@@ -181,7 +181,7 @@
           "type": "error"
         }
       ],
-      "metadataCid": "bafk2bzacect3ygup6jkp3vcslp26lmlwrwpt5mvugec43o3ivuaho5xlpxmo4"
+      "metadataCid": "bafk2bzacebxrsph5b6z3my5ykvdoaqsle5hry6l7pcwf4fqikj2h423gnkbuu"
     }
   },
   "registry": "0xa5747e60ae27f93e92019e4021abfc4957050141"
