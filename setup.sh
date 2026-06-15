@@ -1,44 +1,72 @@
 #!/usr/bin/env bash
-# Sample-app setup — installs dependencies after cloning the repo.
-# Safe to re-run. Should finish in under 2 minutes on a clean macOS/Linux box.
+#
+# setup.sh — prepare a fresh checkout of this template for development.
+#
+#   1. installs npm dependencies (if missing)
+#   2. fetches the @parity/product-sdk skills into .claude/skills/ so AI
+#      coding assistants (Claude Code, Cursor, Windsurf, Copilot, Gemini)
+#      have Polkadot Product SDK guidance on hand while you build.
+#
+# The skills live in github.com/paritytech/product-sdk and are NOT committed
+# to this template (.claude/skills/ is gitignored) — they're fetched fresh so
+# they never go stale. Safe to re-run. Pass --refresh to re-pull the skills
+# even if they're already present.
+#
+#   ./setup.sh            # install deps + fetch skills if missing
+#   ./setup.sh --refresh  # also re-pull the latest skills
+#
+# Overridable via env: PRODUCT_SDK_REPO, PRODUCT_SDK_REF (default: main).
 
 set -euo pipefail
+cd "$(dirname "$0")"
 
-echo "[setup] Rock Paper Scissors"
-echo "[setup] Branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+SKILLS_REPO="${PRODUCT_SDK_REPO:-https://github.com/paritytech/product-sdk.git}"
+SKILLS_REF="${PRODUCT_SDK_REF:-main}"
+SKILLS_SUBDIR="product-sdk/skills"
+SKILLS_DEST=".claude/skills"
 
-# --- Node dependencies -------------------------------------------------------
-if [ -f "package.json" ]; then
-    echo "[setup] Installing npm dependencies..."
-    if command -v npm >/dev/null 2>&1; then
-        npm install --no-audit --no-fund
-    else
-        echo "[setup] ERROR: npm not found. Install Node.js (>= 20) and try again." >&2
-        exit 1
-    fi
+# --- 1. dependencies ---------------------------------------------------------
+if [ ! -d node_modules ]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "    npm not found — install Node.js (>= 20) and re-run." >&2
+    exit 1
+  fi
+  echo "==> Installing npm dependencies..."
+  npm install --no-audit --no-fund
+else
+  echo "==> node_modules present; skipping npm install (delete it to reinstall)."
 fi
 
-# --- Rust / PVM contracts (optional) -----------------------------------------
-# Only needed if you intend to build/deploy the leaderboard contract.
-if [ -f "Cargo.toml" ]; then
-    echo "[setup] Rust workspace detected."
-    if ! command -v cargo >/dev/null 2>&1; then
-        echo "[setup] WARNING: cargo not found. Install via https://rustup.rs to build contracts."
-    fi
-    if ! command -v cdm >/dev/null 2>&1; then
-        echo "[setup] WARNING: cdm CLI not found. Install it before running 'cdm build && cdm deploy -n paseo'."
-    else
-        echo "[setup] cdm is available — run 'npm run build:contracts && npm run deploy' when ready."
-    fi
+# --- 2. @parity/product-sdk skills ------------------------------------------
+if [ -n "$(ls -A "$SKILLS_DEST" 2>/dev/null || true)" ] && [ "${1:-}" != "--refresh" ]; then
+  echo "==> ${SKILLS_DEST}/ already populated; pass --refresh to re-pull."
+  exit 0
 fi
 
-# --- Post-install hints ------------------------------------------------------
-cat <<'EOF'
+if ! command -v git >/dev/null 2>&1; then
+  echo "    git not found — skipping skills fetch." >&2
+  exit 0
+fi
 
-[setup] Done.
+echo "==> Fetching @parity/product-sdk skills into ${SKILLS_DEST}/ ..."
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
 
-Next steps:
-  npm run dev              # start the dev server
-  open http://localhost:5173 in Polkadot Desktop
+if ! git clone --quiet --depth 1 --branch "$SKILLS_REF" \
+      --filter=blob:none --sparse "$SKILLS_REPO" "$tmp" 2>/dev/null; then
+  echo "    Could not clone ${SKILLS_REPO}@${SKILLS_REF} (offline?) — skipping." >&2
+  exit 0
+fi
+git -C "$tmp" sparse-checkout set "$SKILLS_SUBDIR" >/dev/null 2>&1
 
-EOF
+if [ ! -d "$tmp/$SKILLS_SUBDIR" ]; then
+  echo "    No ${SKILLS_SUBDIR} found in the repo — skipping." >&2
+  exit 0
+fi
+
+mkdir -p "$SKILLS_DEST"
+rm -rf "${SKILLS_DEST:?}"/*
+cp -R "$tmp/$SKILLS_SUBDIR/." "$SKILLS_DEST/"
+
+echo "==> Done. Skills now in ${SKILLS_DEST}/:"
+find "$SKILLS_DEST" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | sed 's/^/      - /'
