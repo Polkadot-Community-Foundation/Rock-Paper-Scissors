@@ -55,7 +55,7 @@ env:
     # meta-registry (0xa5747e60…0141) via @polkadot-community-foundation/cdm-env.
     # Bump REF as the fork advances; the hard requirement is cdm-env >= 2.1.0.
     PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
-    PLAYGROUND_CLI_REF: b41feccf9b42334a6d7366a72019896196d48a13
+    PLAYGROUND_CLI_REF: 4a72136a2a7262492b0619fa875d196d55d7850d
     PLAYGROUND_TAG: gaming
 
 jobs:
