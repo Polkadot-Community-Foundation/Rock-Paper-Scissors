@@ -318,13 +318,12 @@ async function ensureContractsReady(): Promise<void> {
 
         // Asset Hub access goes through the host's chain client — both dev
         // (localhost in Polkadot Desktop) and prod (dot.li) run inside a host.
-        // `createChainClient` routes every connection through the host provider
-        // (the `rpcs` field is unused, kept only for API compatibility), so the
-        // host never prompts "Allow Access to Web Domains" for a raw RPC endpoint,
-        // and the chain identity comes from the descriptor — no hardcoded genesis.
+        // `createChainClient` routes every connection through the host provider,
+        // so the host never prompts "Allow Access to Web Domains" for a raw RPC
+        // endpoint, and the chain identity comes from the descriptor — no
+        // hardcoded genesis.
         const chainClient = await createChainClient({
             chains: { assetHub: paseo_asset_hub },
-            rpcs: { assetHub: ["wss://paseo-asset-hub-next-rpc.polkadot.io"] },
         });
         const client = chainClient.raw.assetHub;
         _polkadotClient = client;
