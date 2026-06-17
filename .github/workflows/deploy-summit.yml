@@ -55,7 +55,9 @@ env:
     # meta-registry (0xa5747e60…0141) via @polkadot-community-foundation/cdm-env.
     # Bump REF as the fork advances; the hard requirement is cdm-env >= 2.1.0.
     PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
-    PLAYGROUND_CLI_REF: 438782df8b6d5d9b19baf8445c46d6ba655cf4a3
+    # Synced fork main (PCF playground-cli#8): env-aware publish, native Summit
+    # descriptors, and the builder-identity-gate operator opt-out.
+    PLAYGROUND_CLI_REF: 5b5559b2b61140e7ad99abb643bee7303f402bcb
     PLAYGROUND_TAG: gaming
 
 jobs:
@@ -105,15 +107,25 @@ jobs:
             - name: Verify build output
               run: test -f dist/index.html || (echo "::error::dist/index.html missing after build" && exit 1)
 
-            # Guard the hard-won retarget: a regression to the Paseo descriptor or
-            # endpoints must fail the deploy, not ship a wrong-chain bundle.
-            - name: Assert bundle is Paseo-free
+            # Guard the hard-won retarget: a regression to the Paseo asset-hub
+            # descriptor must fail the deploy, not ship a wrong-chain bundle.
+            # NOTE: assert the SUMMIT genesis positively + check only the
+            # app-selected `paseo_asset_hub` descriptor. We no longer grep the
+            # `*-next` endpoint strings: product-sdk (>=0.15) legitimately bundles
+            # Paseo descriptor/endpoint strings (e.g. paseo-bulletin-next) into
+            # otherwise-correct Summit builds, so those greps false-fail. The app
+            # selects `summit_asset_hub` and the host owns endpoint selection.
+            - name: Assert bundle targets Summit (not Paseo asset hub)
               run: |
-                  if grep -rIl "paseo-asset-hub-next\|paseo-bulletin-next\|paseo_asset_hub" dist/; then
-                    echo "::error::Built bundle contains Paseo endpoints/descriptor — Summit retarget regressed."
+                  if ! grep -rIl "summit_asset_hub_metadata\|summit_asset_hub" dist/ >/dev/null; then
+                    echo "::error::Built bundle is missing the Summit asset-hub descriptor — Summit retarget regressed."
                     exit 1
                   fi
-                  echo "✓ dist/ is Paseo-free"
+                  if grep -rIl "paseo_asset_hub" dist/ >/dev/null; then
+                    echo "::error::Built bundle selects the Paseo asset-hub descriptor — Summit retarget regressed."
+                    exit 1
+                  fi
+                  echo "✓ dist/ targets the Summit asset hub"
 
             # ── Tooling leg: build the Summit-capable playground CLI from the fork ──
             - name: Checkout playground-cli (PCF fork, pinned)
@@ -136,21 +148,20 @@ jobs:
                   node --input-type=module -e "import {getRegistryAddress} from '@polkadot-community-foundation/cdm-env'; const a=getRegistryAddress('w3s'); if(!a){console.error('::error::cdm-env w3s registry address is empty — Summit publish would fail'); process.exit(1)} console.log('w3s CDM registry =', a)"
 
             # ── Deploy (storage + DotNS) — the live deploy; MUST pass ──
-            # `--no-playground`: just upload to Bulletin + bind the name. The
-            # Apps-grid publish is a SEPARATE best-effort step below, because the
-            # playground registry's `publish` is authorization-gated on Summit and
-            # reverts `Unauthorized` for the deploy signer (the playground team
-            # disables CI self-publish there for the same reason). Keeping it out
-            # of the live path means a publish revert never takes the app down.
-            # Host + bind + publish in one headless call (the tutorial pattern).
-            # The Apps-grid `publish` works inline now: playground-cli 9bc4415
-            # routes --env through the registry-publish leg (was Paseo-only, which
-            # surfaced as a spurious `Unauthorized`). So the earlier "live deploy +
-            # best-effort separate publish" split is no longer needed — a real
-            # publish failure here SHOULD fail the run.
-            - name: Deploy rock-paper-scissors.dot (host + bind + publish)
+            # HOST-ONLY (`--yes`): upload to Bulletin + bind the name only. The
+            # Apps-grid publish (`--playground`) is intentionally OFF right now:
+            # dev-signer publishes route through the registry's `publishDev`,
+            # which reverts on-chain since the registry's identity-gate / v17
+            # rollout (anonymous/dev publishes refused). The app stays listed
+            # from its prior publish; this refreshes the .dot CONTENT cleanly.
+            # Re-add `--playground --moddable --tag "$PLAYGROUND_TAG"` once the
+            # registry publish path is restored (e.g. 5Fk8 revealed as a builder
+            # or an owner/sudo publish path).
+            - name: Deploy rock-paper-scissors.dot (host + bind, content-only)
               env:
                   MNEMONIC: ${{ secrets.MNEMONIC }}
+                  # Operator opt-out of the builder-identity gate (headless 5Fk8).
+                  PLAYGROUND_SKIP_IDENTITY_GATE: "1"
               run: |
                   set -euo pipefail
                   "$RUNNER_TEMP/playground" deploy \
@@ -159,7 +170,7 @@ jobs:
                     --domain rock-paper-scissors \
                     --buildDir dist --no-build \
                     --no-contracts \
-                    --playground --moddable --tag "$PLAYGROUND_TAG"
+                    --yes
 
             # rps-game.dot is an ALIAS: same build, host + bind only (no second
             # grid listing). That needs a HOST-ONLY headless deploy = the `--yes`
@@ -174,6 +185,7 @@ jobs:
               continue-on-error: true
               env:
                   MNEMONIC: ${{ secrets.MNEMONIC }}
+                  PLAYGROUND_SKIP_IDENTITY_GATE: "1"
               run: |
                   set -euo pipefail
                   "$RUNNER_TEMP/playground" deploy \
@@ -193,7 +205,8 @@ jobs:
                     echo "Primary &nbsp; https://rock-paper-scissors.dot.li  (\`rock-paper-scissors.dot\`)"
                     echo "Alias &nbsp;&nbsp;&nbsp; https://rps-game.dot.li  (\`rps-game.dot\`)"
                     echo
-                    echo "Primary is host + bind + Apps-grid publish in one (must pass)."
+                    echo "Primary is host + bind, content-only (must pass). Apps-grid"
+                    echo "publish is OFF while the registry publishDev path is broken."
                     echo "The rps-game.dot alias bind is host-only (--yes); continue-on-error"
                     echo "is a safety net so it never blocks the must-pass primary."
                   } >> "$GITHUB_STEP_SUMMARY"
