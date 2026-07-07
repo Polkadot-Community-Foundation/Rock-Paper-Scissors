@@ -32,10 +32,18 @@ jobs:
             - name: Build (tsc -b && vite build)
               run: npm run build
 
-            - name: Assert bundle is Paseo-free
+            # Aligned with deploy-summit.yml: assert the SUMMIT descriptor positively
+            # and check only the app-selected `paseo_asset_hub` descriptor. Endpoint
+            # strings (paseo-*-next) are legitimately baked into Summit builds by
+            # product-sdk (>=0.15) and must not be grepped — false failures.
+            - name: Assert bundle targets Summit (not Paseo asset hub)
               run: |
-                  if grep -rIl "paseo-asset-hub-next\|paseo-bulletin-next\|paseo_asset_hub" dist/; then
-                    echo "::error::Built bundle contains Paseo endpoints/descriptor — Summit retarget regressed."
+                  if ! grep -rIl "summit_asset_hub" dist/ >/dev/null; then
+                    echo "::error::Built bundle is missing the Summit asset-hub descriptor — Summit retarget regressed."
                     exit 1
                   fi
-                  echo "✓ dist/ is Paseo-free"
+                  if grep -rIl "paseo_asset_hub" dist/ >/dev/null; then
+                    echo "::error::Built bundle selects the Paseo asset-hub descriptor — Summit retarget regressed."
+                    exit 1
+                  fi
+                  echo "✓ dist/ targets the Summit asset hub"
