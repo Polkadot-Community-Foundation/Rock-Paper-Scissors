@@ -1,6 +1,6 @@
 # PR gate: type-check + build the frontend and assert it stays Summit-bound.
 # `npm run build` runs `tsc -b` (type-check) then `vite build`, so this covers
-# both. No deploy here — that lives in deploy-summit.yml on push to main.
+# both. No deploy here — that lives in deploy-paseo-next.yml on push to main.
 name: CI
 
 on:
@@ -32,18 +32,18 @@ jobs:
             - name: Build (tsc -b && vite build)
               run: npm run build
 
-            # Aligned with deploy-summit.yml: assert the SUMMIT descriptor positively
+            # Aligned with deploy-paseo-next.yml: assert the PASEO descriptor positively
             # and check only the app-selected `paseo_asset_hub` descriptor. Endpoint
             # strings (paseo-*-next) are legitimately baked into Summit builds by
             # product-sdk (>=0.15) and must not be grepped — false failures.
             - name: Assert bundle targets Summit (not Paseo asset hub)
               run: |
-                  if ! grep -rIl "summit_asset_hub" dist/ >/dev/null; then
-                    echo "::error::Built bundle is missing the Summit asset-hub descriptor — Summit retarget regressed."
+                  if ! grep -rIl "paseo_asset_hub" dist/ >/dev/null; then
+                    echo "::error::Built bundle is missing the Paseo asset-hub descriptor — Summit retarget regressed."
                     exit 1
                   fi
-                  if grep -rIl "paseo_asset_hub" dist/ >/dev/null; then
-                    echo "::error::Built bundle selects the Paseo asset-hub descriptor — Summit retarget regressed."
+                  if grep -rIl "summit_asset_hub" dist/ >/dev/null; then
+                    echo "::error::Built bundle selects the Summit asset-hub descriptor — paseo-next retarget regressed."
                     exit 1
                   fi
-                  echo "✓ dist/ targets the Summit asset hub"
+                  echo "✓ dist/ targets the Paseo Next asset hub"

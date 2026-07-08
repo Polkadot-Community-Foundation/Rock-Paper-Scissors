@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/types.ts","./src/utils.ts","./src/pages/Home.tsx","./src/pages/Leaderboard.tsx","./src/pages/MultiplayerGame.tsx","./src/pages/MultiplayerLobby.tsx","./src/pages/MyProfile.tsx","./src/pages/PlayerHistory.tsx","./src/pages/SoloGame.tsx","./vite.config.ts"],"version":"5.9.3"}
