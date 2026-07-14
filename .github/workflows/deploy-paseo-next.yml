@@ -57,7 +57,7 @@ env:
     PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
     # Synced fork main (PCF playground-cli#8): env-aware publish, native Summit
     # descriptors, and the builder-identity-gate operator opt-out.
-    PLAYGROUND_CLI_REF: 8853ac78e76b3f96f879c4f1057f0d8ce136cbd3
+    PLAYGROUND_CLI_REF: ce66fdb6762101b9ae5d38848add510132bd075d
     PLAYGROUND_TAG: gaming
 
 jobs:
