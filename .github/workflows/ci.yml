@@ -36,7 +36,7 @@ jobs:
             # and check only the app-selected `paseo_asset_hub` descriptor. Endpoint
             # strings (paseo-*-next) are legitimately baked into Summit builds by
             # product-sdk (>=0.15) and must not be grepped — false failures.
-            - name: Assert bundle targets Summit (not Paseo asset hub)
+            - name: Assert bundle targets devnet (not Summit asset hub)
               run: |
                   if ! grep -rIl "paseo_asset_hub" dist/ >/dev/null; then
                     echo "::error::Built bundle is missing the Paseo asset-hub descriptor — Summit retarget regressed."
