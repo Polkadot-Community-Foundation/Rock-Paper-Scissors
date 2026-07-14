@@ -19,7 +19,7 @@
 # playground-cli is a PRIVATE PCF package whose Summit wiring (the @w3s CDM
 # meta-registry via @polkadot-community-foundation/cdm-env) isn't in the public
 # paritytech binaries — so CI builds the PCF fork from source at a pinned SHA.
-name: Deploy to Summit
+name: Deploy to devnet
 
 on:
     workflow_dispatch:
@@ -47,7 +47,7 @@ on:
 
 # One signer (5Fk8) signs serially on-chain — never run two deploys at once.
 concurrency:
-    group: deploy-summit-rps
+    group: deploy-devnet-rps
     cancel-in-progress: false
 
 env:
@@ -115,7 +115,7 @@ jobs:
             # Paseo descriptor/endpoint strings (e.g. paseo-bulletin-next) into
             # otherwise-correct Summit builds, so those greps false-fail. The app
             # selects `paseo_asset_hub` and the host owns endpoint selection.
-            - name: Assert bundle targets Summit (not Paseo asset hub)
+            - name: Assert bundle targets devnet (not Summit asset hub)
               run: |
                   if ! grep -rIl "paseo_asset_hub_metadata\|paseo_asset_hub" dist/ >/dev/null; then
                     echo "::error::Built bundle is missing the Summit asset-hub descriptor — Summit retarget regressed."
@@ -142,7 +142,7 @@ jobs:
                   bun build --compile src/index.ts --outfile "$RUNNER_TEMP/playground"
                   "$RUNNER_TEMP/playground" --version
 
-            - name: Sanity — Summit CDM registry resolves (w3s populated)
+            - name: Sanity — devnet CDM registry resolves (w3s populated)
               working-directory: .playground-cli
               run: |
                   node --input-type=module -e "import {getRegistryAddress} from '@polkadot-community-foundation/cdm-env'; const a=getRegistryAddress('w3s'); if(!a){console.error('::error::cdm-env w3s registry address is empty — Summit publish would fail'); process.exit(1)} console.log('w3s CDM registry =', a)"
@@ -200,7 +200,7 @@ jobs:
               if: always()
               run: |
                   {
-                    echo "### Rock-Paper-Scissors → Summit"
+                    echo "### Rock-Paper-Scissors → devnet"
                     echo
                     echo "Primary &nbsp; https://rock-paper-scissors.dot.li  (\`rock-paper-scissors.dot\`)"
                     echo "Alias &nbsp;&nbsp;&nbsp; https://rps-game.dot.li  (\`rps-game.dot\`)"
