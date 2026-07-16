@@ -48,9 +48,25 @@ export default function App() {
     }
 
     if (status === "error" || !account) {
+        // A missing product account almost always just means the user isn't
+        // signed in yet — the host answers with `RequestCredentialsErr::
+        // NotConnected`. Show the friendly sign-in prompt for that case; only
+        // surface raw error text for genuine failures.
+        const notSignedIn =
+            !error || /not\s*connected|NotConnected|RequestCredentials/i.test(String(error));
+        if (notSignedIn) {
+            return (
+                <div className="empty">
+                    <div>Sign in to dotli to play Rock Paper Scissors.</div>
+                    <button className="btn btn-primary" onClick={() => signIn()} style={{ marginTop: 12 }}>
+                        Sign in
+                    </button>
+                </div>
+            );
+        }
         return (
             <div className="empty">
-                <div>Failed to connect: {error ?? "no account"}</div>
+                <div>Failed to connect: {error}</div>
                 <button className="btn btn-primary" onClick={() => connectAccount()} style={{ marginTop: 12 }}>
                     Retry
                 </button>
