@@ -51,7 +51,7 @@ concurrency:
     cancel-in-progress: false
 
 env:
-    # playground-cli (PCF fork) carries `--env paseo-next` + resolves the @w3s CDM
+    # playground-cli (PCF fork) carries `--env devnet` + resolves the @w3s CDM
     # meta-registry (0xa5747e60…0141) via @polkadot-community-foundation/cdm-env.
     # Bump REF as the fork advances; the hard requirement is cdm-env >= 2.1.0.
     PLAYGROUND_CLI_REPO: Polkadot-Community-Foundation/playground-cli
@@ -165,7 +165,7 @@ jobs:
               run: |
                   set -euo pipefail
                   "$RUNNER_TEMP/playground" deploy \
-                    --env paseo-next \
+                    --env devnet \
                     --signer dev --suri "$MNEMONIC" \
                     --domain rock-paper-scissors \
                     --buildDir dist --no-build \
@@ -189,7 +189,7 @@ jobs:
               run: |
                   set -euo pipefail
                   "$RUNNER_TEMP/playground" deploy \
-                    --env paseo-next \
+                    --env devnet \
                     --signer dev --suri "$MNEMONIC" \
                     --domain rps-game \
                     --buildDir dist --no-build \
